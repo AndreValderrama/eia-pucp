@@ -1,8 +1,11 @@
+export type GroupRole = 'admin' | 'editor' | 'viewer';
+
 export interface Group {
   id: string;
   name: string;
   inviteCode: string;
   members: string[]; // User UIDs
+  roles: Record<string, GroupRole>; // User UID -> Role
 }
 
 export interface Project {

@@ -21,6 +21,7 @@ export const groupService = {
       name,
       inviteCode,
       members: [userId],
+      roles: { [userId]: 'admin' }, // Creator is admin
       createdAt: Timestamp.now(),
     });
     return groupRef.id;
@@ -34,7 +35,15 @@ export const groupService = {
     
     const groupRef = doc(db, COLLECTION_NAME, snapshot.docs[0].id);
     await updateDoc(groupRef, {
-      members: arrayUnion(userId)
+      members: arrayUnion(userId),
+      [`roles.${userId}`]: 'viewer' // Default role for new joiners
+    });
+  },
+
+  async updateMemberRole(groupId: string, userId: string, role: GroupRole): Promise<void> {
+    const groupRef = doc(db, COLLECTION_NAME, groupId);
+    await updateDoc(groupRef, {
+      [`roles.${userId}`]: role
     });
   },
 
