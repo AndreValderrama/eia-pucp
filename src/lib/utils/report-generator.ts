@@ -8,64 +8,79 @@ export const generateComparativeReport = (
   impactsMap: Record<string, Impact[]>
 ) => {
   const doc = new jsPDF();
+  let y = 20;
 
-  // Title
-  doc.setFontSize(18);
-  doc.text(`Informe Comparativo de Impacto Ambiental: ${project.name}`, 14, 20);
-  
-  doc.setFontSize(12);
-  doc.text(`Promotor: ${project.description}`, 14, 30);
-  doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 37);
+  const addText = (text: string, size: number = 12, bold: boolean = false) => {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(size);
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    const lines = doc.splitTextToSize(text, 180);
+    doc.text(lines, 14, y);
+    y += lines.length * (size / 2) + 5;
+  };
 
-  // Summary Table
-  const tableData = alternatives.map(alt => [
-    alt.name,
-    (alt.valorTotal || 0).toFixed(3),
-    alt.valorada ? 'Sí' : 'No'
-  ]);
+  // Header
+  addText(`Informe Comparativo de Impacto Ambiental: ${project.name}`, 18, true);
+  addText(`Promotor: ${project.description}`, 12);
+  addText(`Fecha: ${new Date().toLocaleDateString()}`, 12);
+  y += 10;
 
+  // Actions/Factors Table
+  addText("Definición de Acciones y Factores", 14, true);
   autoTable(doc, {
-    startY: 45,
-    head: [['Alternativa', 'Valor Total', 'Valorada']],
-    body: tableData,
-    theme: 'grid',
+    startY: y,
+    head: [['Elemento', 'Tipo/Peso']],
+    body: [
+        ['Acciones', 'Framework estándar'],
+        ['Factores', 'Ponderación jerárquica']
+    ],
+    theme: 'striped',
   });
+  y = (doc as any).lastAutoTable.finalY + 10;
 
-  // Detailed Analysis per alternative
-  alternatives.forEach((alt, index) => {
-    doc.addPage();
-    doc.setFontSize(14);
-    doc.text(`Detalle de Alternativa: ${alt.name}`, 14, 20);
+  // Details
+  alternatives.forEach((alt) => {
+    addText(`Detalle de Alternativa: ${alt.name}`, 16, true);
     
     const altImpacts = impactsMap[alt.id] || [];
-    const impactData = altImpacts.map(i => {
-        let details = 'Importancia: ' + i.importance;
+    altImpacts.forEach((i) => {
+      addText(`Acción: ${i.actionName}`, 12, true);
+      addText(`Factor: ${i.factorName}`, 12);
+      addText(`Descripción: ${i.description || 'Sin descripción'}`, 12);
+      
+      if (i.importance === 'significativo' && i.qualitative) {
+        addText(`Valoración Cualitativa:`, 12, true);
+        const q = i.qualitative;
+        autoTable(doc, {
+            startY: y,
+            head: [['Parámetro', 'Valor']],
+            body: [
+                ['Signo', q.signo],
+                ['Intensidad', q.intensidad],
+                ['Extensión', q.extension],
+                ['Persistencia', q.persistencia],
+                ['Reversibilidad', q.reversibilidad],
+                ['Recuperabilidad', q.recuperabilidad],
+                ['Periodicidad', q.periodicidad],
+                ['Momento', q.momento],
+                ['Efecto', q.efecto]
+            ],
+            theme: 'grid',
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
         
-        if (i.importance === 'significativo' && i.qualitative) {
-            const q = i.qualitative;
-            details += `\nCualitativo: Signo:${q.signo}, Int:${q.intensidad}, Ext:${q.extension}, Pers:${q.persistencia}, Rev:${q.reversibilidad}, Rec:${q.recuperabilidad}, Per:${q.periodicidad}, Mom:${q.momento}, Ef:${q.efecto}`;
-            
-            if (i.quantitative) {
-                const qn = i.quantitative;
-                details += `\nCuantitativo: Func:${qn.functionType}, Magnitud:${qn.calculatedValue.toFixed(3)}`;
-            }
+        if (i.quantitative) {
+            addText(`Valoración Cuantitativa (Magnitud: ${i.quantitative.calculatedValue.toFixed(3)})`, 12, true);
         }
-
-        return [
-            i.actionName,
-            i.factorName,
-            details,
-            i.normalizedWeight.toFixed(4)
-        ];
+      } else {
+        addText(`Valoración: ${i.importance}`, 11);
+      }
+      y += 5;
     });
-
-    autoTable(doc, {
-        startY: 30,
-        head: [['Acción', 'Factor', 'Detalle de Valoración', 'Peso']],
-        body: impactData,
-        theme: 'striped',
-        columnStyles: { 2: { cellWidth: 80 } }
-    });
+    y += 10;
   });
 
   doc.save(`Informe_EIA_${project.name.replace(/\s+/g, '_')}.pdf`);

@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -14,29 +15,39 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar';
 import Logo from '@/components/Logo';
-import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth-context';
+import { projectService } from '@/lib/services/project-service';
+import { Project } from '@/lib/types';
 import { 
   LayoutDashboard, 
   ListTree, 
-  ClipboardPlus, 
-  FileText, 
   BarChart3, 
   Settings2,
   LogOut,
-  BookOpenText,
-  Wind
+  Wind,
+  Zap,
+  Users
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/alternatives', label: 'Alternatives', icon: ListTree },
-  { href: '/factors', label: 'Factors', icon: Wind },
-  { href: '/templates', label: 'Frameworks', icon: BookOpenText },
-  { href: '/results', label: 'Results', icon: BarChart3 },
+  { href: '/', label: 'Panel', icon: LayoutDashboard },
+  { href: '/alternatives', label: 'Alternativas', icon: ListTree },
+  { href: '/factors', label: 'Factores', icon: Wind },
+  { href: '/groups', label: 'Grupos', icon: Users },
+  { href: '/results', label: 'Resultados', icon: BarChart3 },
 ];
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  // Fetch projects would be here in a real app, assuming state from parent or hook
+  const [projects, setProjects] = useState<Project[]>([]);
+  const { user } = useAuth();
+
+  useEffect(() => {
+      if (user) {
+          projectService.getUserProjects(user.uid).then(setProjects);
+      }
+  }, [user]);
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">
@@ -59,6 +70,19 @@ export default function AppSidebar() {
                   </div>
                 </SidebarMenuButton>
               </Link>
+            </SidebarMenuItem>
+          ))}
+          
+          <SidebarSeparator />
+          <div className="px-3 py-2 text-xs font-semibold text-muted-foreground">Proyectos (Estructuras)</div>
+          {projects.map((p) => (
+            <SidebarMenuItem key={p.id}>
+                <Link href={`/projects/${p.id}/framework`} passHref>
+                    <SidebarMenuButton tooltip={p.name}>
+                        <Zap className="h-4 w-4" />
+                        <span>{p.name}</span>
+                    </SidebarMenuButton>
+                </Link>
             </SidebarMenuItem>
           ))}
         </SidebarMenu>

@@ -1,6 +1,14 @@
+export interface Group {
+  id: string;
+  name: string;
+  inviteCode: string;
+  members: string[]; // User UIDs
+}
+
 export interface Project {
   id: string;
   userId: string;
+  groupId?: string; // New: Access Control
   name: string;
   description: string;
   creationDate: string; // ISO date string
@@ -19,6 +27,7 @@ export interface ActionNode {
 export interface EnvironmentalFactor {
   id: string;
   userId: string;
+  groupId?: string; // New: Access Control
   name: string;
   weight: number; 
   description?: string;
