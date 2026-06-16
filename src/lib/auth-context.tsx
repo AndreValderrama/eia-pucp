@@ -8,6 +8,7 @@ import {
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
+import { useToast } from '@/hooks/use-toast';
 import { auth } from './firebase';
 
 interface AuthContextType {
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -36,8 +38,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user') {
+        return; // Silent fail
+      }
       console.error("Error signing in with Google:", error);
+      toast({ 
+        title: "Error de inicio de sesión", 
+        description: "No se pudo completar el inicio de sesión. Inténtalo de nuevo.", 
+        variant: "destructive" 
+      });
     }
   };
 

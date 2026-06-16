@@ -1,5 +1,5 @@
 import { Leaf } from 'lucide-react';
-import Link from 'next/link';
+import { useSidebar } from '@/components/ui/sidebar';
 
 interface LogoProps {
   className?: string;
@@ -8,12 +8,14 @@ interface LogoProps {
 }
 
 export default function Logo({ className, iconSize = 24, textSize = "text-xl" }: LogoProps) {
+  const { toggleSidebar } = useSidebar();
+
   return (
-    <Link href="/" className={`flex items-center gap-2 ${className}`}>
+    <button onClick={toggleSidebar} className={`flex items-center gap-2 ${className}`}>
       <Leaf className="text-primary" size={iconSize} />
       <span className={`font-headline font-bold ${textSize} text-primary`}>
         EnviroWise EIA
       </span>
-    </Link>
+    </button>
   );
 }

@@ -60,6 +60,15 @@ export default function ProjectFrameworkEditor() {
       }));
   };
 
+  const findNode = (nodes: ActionNode[], id: string): ActionNode | null => {
+    for (const node of nodes) {
+      if (node.id === id) return node;
+      const found = findNode(node.children || [], id);
+      if (found) return found;
+    }
+    return null;
+  };
+
   const handleSaveNode = async () => {
     if (!project) return;
     let newTree = [...(project.actionTree || [])];
@@ -71,10 +80,16 @@ export default function ProjectFrameworkEditor() {
         });
         newTree = update(newTree);
     } else {
+        const parent = parentNodeId ? findNode(newTree, parentNodeId) : null;
+        let type: 'phase' | 'labor' | 'action' = 'phase';
+        if (parent) {
+             type = parent.type === 'phase' ? 'labor' : 'action';
+        }
+
         const newNode: ActionNode = { 
             id: Math.random().toString(36).substr(2, 9), 
             name: newNodeName, 
-            type: parentNodeId ? 'action' : 'phase', 
+            type: type, 
             children: [] 
         };
         if (parentNodeId) {

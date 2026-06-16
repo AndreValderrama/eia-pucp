@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 import { 
   Dialog, 
   DialogContent, 
@@ -33,6 +34,17 @@ import {
   CheckCircle2,
   Calculator
 } from 'lucide-react';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from '@/lib/auth-context';
 import { alternativeService } from '@/lib/services/alternative-service';
 import { projectService } from '@/lib/services/project-service';
@@ -42,6 +54,7 @@ import { impactService } from '@/lib/services/impact-service';
 import type { Project, Alternative, ActionNode, EnvironmentalFactor, Impact, ImpactImportance } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import ActionTree from '@/components/ActionTree';
+import FactorTree from '@/components/FactorTree';
 import ImpactEvaluationDialog from '@/components/ImpactEvaluationDialog';
 
 export default function AlternativeDetailPage() {
@@ -120,6 +133,7 @@ export default function AlternativeDetailPage() {
     const formData = new FormData(e.currentTarget);
     const importance = formData.get('importance') as ImpactImportance;
     const description = formData.get('description') as string;
+    const impactName = formData.get('impactName') as string; // Capture new field
 
     setIsSaving(true);
     try {
@@ -132,7 +146,7 @@ export default function AlternativeDetailPage() {
         factorName: selectedFactor.name,
         importance,
         normalizedWeight: selectedFactor.weight / (totalFactorWeight || 1),
-        description
+        description: `${impactName}: ${description}` // Store as combined
       });
 
       toast({ title: "Impact Linked", description: `${selectedAction.name} → ${selectedFactor.name}` });
@@ -157,6 +171,18 @@ export default function AlternativeDetailPage() {
     }
   };
 
+  const handleDeleteAlternative = async () => {
+
+    if (!alternative) return;
+    try {
+        await alternativeService.deleteAlternative(alternative.id);
+        toast({ title: "Alternative Deleted" });
+        router.push('/');
+    } catch (error) {
+        toast({ title: "Error deleting", variant: "destructive" });
+    }
+  };
+
   if (authLoading || loading) return <div className="flex justify-center p-24"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
   if (!alternative || !project) return <div className="p-12 text-center">Alternative not found.</div>;
 
@@ -173,16 +199,28 @@ export default function AlternativeDetailPage() {
             <Badge className="bg-primary text-white">
                 Alternative: {alternative.name}
             </Badge>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm"><Trash2 className="h-4 w-4" /></Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>This will permanently delete this alternative and all associated impacts.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAlternative}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
       </div>
 
       <Tabs defaultValue="visual" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="hidden">
           <TabsTrigger value="visual" className="flex items-center gap-2">
             <Layers className="h-4 w-4" /> Node Mapping
-          </TabsTrigger>
-          <TabsTrigger value="framework" className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4" /> Framework Logic
           </TabsTrigger>
         </TabsList>
 
@@ -195,24 +233,16 @@ export default function AlternativeDetailPage() {
                 <CardContent className="px-0">
                     <div className="grid grid-cols-1 md:grid-cols-11 gap-4 items-start">
                         {/* 1. Actions Column */}
-                        <div className="md:col-span-4 space-y-4">
+                        <div className="md:col-span-5 space-y-4">
                             <h3 className="flex items-center gap-2 font-headline font-bold text-amber-600 uppercase text-xs tracking-widest px-2">
-                                <Zap className="h-4 w-4" /> Standardized Actions
+                                <Zap className="h-4 w-4" /> Estructura de Acciones
                             </h3>
-                            <div className="space-y-2 max-h-[600px] overflow-auto p-2 bg-muted/30 rounded-xl border">
-                                {leafActions.map(action => (
-                                    <div 
-                                        key={action.id}
-                                        onClick={() => setSelectedAction(action)}
-                                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                                            selectedAction?.id === action.id 
-                                            ? 'bg-amber-100 border-amber-500 shadow-md translate-x-2' 
-                                            : 'bg-card hover:border-amber-300'
-                                        }`}
-                                    >
-                                        <p className="text-sm font-medium">{action.name}</p>
-                                    </div>
-                                ))}
+                            <div className="max-h-[600px] overflow-auto p-4 bg-muted/30 rounded-xl border">
+                                <ActionTree 
+                                    nodes={actionTree} 
+                                    onSelect={(node) => setSelectedAction(node)}
+                                    selectedId={selectedAction?.id}
+                                />
                             </div>
                         </div>
 
@@ -227,33 +257,22 @@ export default function AlternativeDetailPage() {
                                     size="sm"
                                     onClick={() => setIsImpactDialogOpen(true)}
                                 >
-                                    Link
+                                    Vincular
                                 </Button>
                             )}
                         </div>
 
                         {/* 3. Factors Column */}
-                        <div className="md:col-span-4 space-y-4">
+                        <div className="md:col-span-5 space-y-4">
                             <h3 className="flex items-center gap-2 font-headline font-bold text-primary uppercase text-xs tracking-widest px-2">
-                                <Wind className="h-4 w-4" /> Environmental Factors
+                                <Wind className="h-4 w-4" /> Factores Ambientales
                             </h3>
-                            <div className="space-y-2 max-h-[600px] overflow-auto p-2 bg-muted/30 rounded-xl border">
-                                {leafFactors.map(factor => (
-                                    <div 
-                                        key={factor.id}
-                                        onClick={() => setSelectedFactor(factor)}
-                                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                                            selectedFactor?.id === factor.id 
-                                            ? 'bg-primary/10 border-primary shadow-md -translate-x-2' 
-                                            : 'bg-card hover:border-primary/30'
-                                        }`}
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <p className="text-sm font-medium">{factor.name}</p>
-                                            <Badge variant="outline" className="text-[10px] opacity-60">W: {factor.weight}</Badge>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="max-h-[600px] overflow-auto p-4 bg-muted/30 rounded-xl border">
+                                <FactorTree 
+                                    factors={factorTree} 
+                                    onSelect={(factor) => setSelectedFactor(factor)}
+                                    selectedId={selectedFactor?.id}
+                                />
                             </div>
                         </div>
 
@@ -341,36 +360,6 @@ export default function AlternativeDetailPage() {
                 )}
             </section>
         </TabsContent>
-
-        <TabsContent value="framework" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="shadow-md">
-                    <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-                        <div>
-                            <CardTitle className="text-xl font-headline">Alternative Action Logic</CardTitle>
-                            <CardDescription>Customize the Phases and Labors for this specific alternative.</CardDescription>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <ActionTree nodes={actionTree} onEdit={() => {}} onAddChild={() => {}} onDelete={() => {}} />
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-muted/10 border-dashed">
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <Info className="h-5 w-5 text-primary" />
-                            Framework Settings
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-sm space-y-4 text-muted-foreground">
-                        <p>This alternative currently uses its own action framework derived from <strong>{project.projectType}</strong>.</p>
-                        <p>Linking an <strong>Action</strong> to a <strong>Factor</strong> creates an entry in the impacts matrix.</p>
-                        <p>The <strong>Normalized Weight</strong> used for final scoring is calculated as: <code>Factor Weight / Total Alternative Weight</code>.</p>
-                    </CardContent>
-                </Card>
-            </div>
-        </TabsContent>
       </Tabs>
 
       {/* Impact Importance Dialog */}
@@ -406,7 +395,16 @@ export default function AlternativeDetailPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-bold">Justification / Description</Label>
+              <Label htmlFor="impactName" className="text-sm font-bold">Nombre del Impacto</Label>
+              <Input 
+                name="impactName" 
+                required 
+                placeholder="Nombre corto del impacto"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-bold">Justificación / Descripción</Label>
               <Textarea 
                 name="description" 
                 placeholder="Describe why this action impacts this factor..."

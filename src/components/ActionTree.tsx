@@ -16,9 +16,11 @@ import { Zap, ChevronRight, Layers, Activity, Edit2, Plus, Trash2 } from 'lucide
 interface ActionTreeProps {
   nodes: ActionNode[];
   level?: number;
-  onEdit: (node: ActionNode) => void;
-  onAddChild: (parentId: string) => void;
-  onDelete: (nodeId: string) => void;
+  onEdit?: (node: ActionNode) => void;
+  onAddChild?: (parentId: string) => void;
+  onDelete?: (nodeId: string) => void;
+  onSelect?: (node: ActionNode) => void;
+  selectedId?: string;
 }
 
 export default function ActionTree({ 
@@ -26,7 +28,9 @@ export default function ActionTree({
   level = 0, 
   onEdit, 
   onAddChild, 
-  onDelete 
+  onDelete,
+  onSelect,
+  selectedId
 }: ActionTreeProps) {
   if (!nodes || nodes.length === 0) return null;
 
@@ -37,13 +41,13 @@ export default function ActionTree({
         
         const getIcon = () => {
             if (node.type === 'phase') return <Zap className="h-4 w-4 text-amber-500" />;
-            if (node.type === 'labor') return <Activity className="h-4 w-4 text-primary" />;
+            if (node.type === 'labor') return <Activity className="h-4 w-4 text-blue-500" />;
             return <Layers className="h-4 w-4 text-muted-foreground" />;
         };
 
         const ActionButtons = () => (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto px-2">
-            {node.type !== 'action' && (
+            {onAddChild && node.type !== 'action' && (
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -54,24 +58,28 @@ export default function ActionTree({
                 <Plus className="h-4 w-4" />
               </Button>
             )}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-amber-600" 
-              onClick={(e) => { e.stopPropagation(); onEdit(node); }}
-              title="Edit Name"
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-destructive" 
-              onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
-              title="Delete"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {onEdit && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-amber-600" 
+                onClick={(e) => { e.stopPropagation(); onEdit(node); }}
+                title="Edit Name"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-destructive" 
+                onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
+                title="Delete"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         );
 
@@ -104,8 +112,10 @@ export default function ActionTree({
                     onEdit={onEdit}
                     onAddChild={onAddChild}
                     onDelete={onDelete}
+                    onSelect={onSelect}
+                    selectedId={selectedId}
                   />
-                  {!hasChildren && (
+                  {!hasChildren && node.type !== 'action' && (
                     <div className="py-2 px-4 text-xs text-muted-foreground italic border-l-2 border-primary/10 ml-6">
                       No {node.type === 'phase' ? 'labors' : 'actions'} defined yet.
                     </div>
@@ -117,7 +127,11 @@ export default function ActionTree({
         }
 
         return (
-          <Card key={node.id} className="bg-card/50 border-dashed hover:border-primary/50 transition-colors group">
+          <Card 
+            key={node.id} 
+            className={`bg-card/50 border-dashed hover:border-primary/50 transition-colors group cursor-pointer ${selectedId === node.id ? 'bg-amber-100 border-amber-500 shadow-md translate-x-2' : ''}`}
+            onClick={() => onSelect?.(node)}
+          >
             <CardContent className="p-3 flex items-center gap-3">
               <ChevronRight className="h-4 w-4 text-primary/40" />
               <div className="flex-1">

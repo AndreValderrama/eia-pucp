@@ -31,7 +31,6 @@ import {
 
 const navItems = [
   { href: '/', label: 'Panel', icon: LayoutDashboard },
-  { href: '/alternatives', label: 'Alternativas', icon: ListTree },
   { href: '/factors', label: 'Factores', icon: Wind },
   { href: '/groups', label: 'Grupos', icon: Users },
   { href: '/results', label: 'Resultados', icon: BarChart3 },
@@ -40,14 +39,18 @@ const navItems = [
 export default function AppSidebar() {
   const pathname = usePathname();
   // Fetch projects would be here in a real app, assuming state from parent or hook
+  const [isMounted, setIsMounted] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
+      setIsMounted(true);
       if (user) {
           projectService.getUserProjects(user.uid).then(setProjects);
       }
   }, [user]);
+
+  if (!isMounted) return null;
 
   return (
     <Sidebar variant="sidebar" collapsible="icon">

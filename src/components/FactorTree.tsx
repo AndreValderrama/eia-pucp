@@ -16,9 +16,11 @@ import { Wind, ChevronRight, Hash, Edit2, Plus, Trash2 } from 'lucide-react';
 interface FactorTreeProps {
   factors: EnvironmentalFactor[];
   level?: number;
-  onEdit: (factor: EnvironmentalFactor) => void;
-  onAddChild: (parentId: string) => void;
-  onDelete: (factorId: string) => void;
+  onEdit?: (factor: EnvironmentalFactor) => void;
+  onAddChild?: (parentId: string) => void;
+  onDelete?: (factorId: string) => void;
+  onSelect?: (factor: EnvironmentalFactor) => void;
+  selectedId?: string;
 }
 
 export default function FactorTree({ 
@@ -26,7 +28,9 @@ export default function FactorTree({
   level = 0, 
   onEdit, 
   onAddChild, 
-  onDelete 
+  onDelete,
+  onSelect,
+  selectedId
 }: FactorTreeProps) {
   if (!factors || factors.length === 0) return null;
 
@@ -37,33 +41,39 @@ export default function FactorTree({
 
         const ActionButtons = () => (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-auto px-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-primary" 
-              onClick={(e) => { e.stopPropagation(); onAddChild(factor.id); }}
-              title="Add Sub-factor"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-amber-600" 
-              onClick={(e) => { e.stopPropagation(); onEdit(factor); }}
-              title="Edit Factor"
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-destructive" 
-              onClick={(e) => { e.stopPropagation(); onDelete(factor.id); }}
-              title="Delete Factor"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {onAddChild && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-primary" 
+                onClick={(e) => { e.stopPropagation(); onAddChild(factor.id); }}
+                title="Add Sub-factor"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
+            {onEdit && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-amber-600" 
+                onClick={(e) => { e.stopPropagation(); onEdit(factor); }}
+                title="Edit Factor"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-destructive" 
+                onClick={(e) => { e.stopPropagation(); onDelete(factor.id); }}
+                title="Delete Factor"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         );
 
@@ -94,6 +104,8 @@ export default function FactorTree({
                     onEdit={onEdit}
                     onAddChild={onAddChild}
                     onDelete={onDelete}
+                    onSelect={onSelect}
+                    selectedId={selectedId}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -102,7 +114,11 @@ export default function FactorTree({
         }
 
         return (
-          <Card key={factor.id} className="bg-card/50 border-dashed hover:border-primary/50 transition-colors group">
+          <Card 
+            key={factor.id} 
+            className={`bg-card/50 border-dashed hover:border-primary/50 transition-colors group cursor-pointer ${selectedId === factor.id ? 'bg-primary/10 border-primary shadow-md -translate-x-2' : ''}`}
+            onClick={() => onSelect?.(factor)}
+          >
             <CardContent className="p-4 flex items-center gap-3">
               <ChevronRight className="h-4 w-4 text-primary/40" />
               <div className="flex-1">
