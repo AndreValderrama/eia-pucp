@@ -31,6 +31,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/alternatives', label: 'Alternatives', icon: ListTree },
   { href: '/factors', label: 'Factors', icon: Wind },
+  { href: '/templates', label: 'Frameworks', icon: BookOpenText },
   { href: '/results', label: 'Results', icon: BarChart3 },
 ];
 

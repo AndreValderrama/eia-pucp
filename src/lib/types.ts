@@ -1,4 +1,3 @@
-
 export interface Project {
   id: string;
   userId: string;
@@ -6,6 +5,15 @@ export interface Project {
   description: string;
   creationDate: string; // ISO date string
   authors: string[];
+  projectType?: string; // e.g., 'Vial', 'Vertedero', 'Puerto', 'Presa'
+  actionTree?: ActionNode[]; // Master framework for all alternatives in this project
+}
+
+export interface ActionNode {
+  id: string;
+  name: string;
+  type: 'phase' | 'labor' | 'action';
+  children?: ActionNode[];
 }
 
 export interface EnvironmentalFactor {
@@ -39,6 +47,7 @@ export interface Effect {
 export interface Alternative {
   id: string;
   userId: string;
+  projectId: string; // Link to parent project
   name: string;
   description?: string;
   effects: Effect[];

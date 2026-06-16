@@ -16,10 +16,14 @@ import { Layers, ChevronLeft, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { alternativeService } from '@/lib/services/alternative-service';
+import { actionService } from '@/lib/services/action-service';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Controller } from 'react-hook-form';
 
 const alternativeSchema = z.object({
   name: z.string().min(3, 'Alternative name must be at least 3 characters.'),
   description: z.string().optional(),
+  projectType: z.string().min(1, 'Please select a project framework.'),
 });
 
 type AlternativeFormValues = z.infer<typeof alternativeSchema>;
@@ -29,6 +33,7 @@ export default function CreateAlternativePage() {
   const { toast } = useToast();
   const { user, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const projectTypes = actionService.getAvailableProjectTypes();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -41,8 +46,9 @@ export default function CreateAlternativePage() {
     }
   }, [user, loading, router, toast]);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<AlternativeFormValues>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<AlternativeFormValues>({
     resolver: zodResolver(alternativeSchema),
+    defaultValues: { projectType: projectTypes[0] }
   });
 
   const onSubmit = async (data: AlternativeFormValues) => {
@@ -50,21 +56,25 @@ export default function CreateAlternativePage() {
     
     setIsSubmitting(true);
     try {
+      // Get the standard action tree for this project type
+      const standardActions = actionService.getActionsForType(data.projectType);
+      
       const newAlternativeId = await alternativeService.createAlternative(user.uid, {
         name: data.name,
         description: data.description || '',
+        actionTree: standardActions, // Each alternative gets its own copy
       });
 
       toast({
         title: 'Alternative Created',
-        description: `"${data.name}" has been successfully created.`,
+        description: `"${data.name}" has been created with the "${data.projectType}" framework.`,
       });
       router.push(`/alternatives/${newAlternativeId}`);
     } catch (error) {
       console.error('Error creating alternative:', error);
       toast({
         title: 'Error',
-        description: 'Could not create alternative. Please try again.',
+        description: 'Could not create alternative.',
         variant: 'destructive',
       });
     } finally {
@@ -90,16 +100,38 @@ export default function CreateAlternativePage() {
             Create New Alternative
           </CardTitle>
           <CardDescription>
-            Define a new alternative for your project. You can add specific environmental effects later.
+            Define a new alternative and select its starting action framework.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div>
               <Label htmlFor="name">Alternative Name</Label>
-              <Input id="name" {...register('name')} placeholder="e.g., Tunnel Bypass Route, Upgraded Technology Option" />
+              <Input id="name" {...register('name')} placeholder="e.g., Solar Array A, Route Option 1" />
               {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
             </div>
+
+            <div>
+              <Label htmlFor="projectType">Action Framework Template</Label>
+              <Controller
+                name="projectType"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projectTypes.map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground mt-1">This will populate the alternative with standardized Phases, Labors, and Actions.</p>
+            </div>
+
             <div>
               <Label htmlFor="description">Description (Optional)</Label>
               <Textarea id="description" {...register('description')} placeholder="Provide a brief description of this alternative." />

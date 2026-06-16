@@ -13,6 +13,11 @@ export default function ProjectInfo({ project }: ProjectInfoProps) {
         <CardTitle className="font-headline text-3xl text-primary flex items-center gap-2">
           <Info className="h-8 w-8" />
           {project.name}
+          {project.projectType && (
+             <span className="ml-2 text-sm font-body font-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20">
+               {project.projectType}
+             </span>
+          )}
         </CardTitle>
         <CardDescription className="text-base">{project.description}</CardDescription>
       </CardHeader>
