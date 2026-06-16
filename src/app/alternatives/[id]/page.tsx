@@ -30,7 +30,8 @@ import {
   Trash2,
   Settings2,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  Calculator
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { alternativeService } from '@/lib/services/alternative-service';
@@ -41,6 +42,7 @@ import { impactService } from '@/lib/services/impact-service';
 import type { Project, Alternative, ActionNode, EnvironmentalFactor, Impact, ImpactImportance } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import ActionTree from '@/components/ActionTree';
+import ImpactEvaluationDialog from '@/components/ImpactEvaluationDialog';
 
 export default function AlternativeDetailPage() {
   const params = useParams();
@@ -61,6 +63,10 @@ export default function AlternativeDetailPage() {
   const [selectedFactor, setSelectedFactor] = useState<EnvironmentalFactor | null>(null);
   const [isImpactDialogOpen, setIsImpactDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Evaluation Dialog State
+  const [isEvalDialogOpen, setIsEvalDialogOpen] = useState(false);
+  const [impactToEval, setImpactToEval] = useState<Impact | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user || !id) return;
@@ -283,14 +289,30 @@ export default function AlternativeDetailPage() {
                                         }`}>
                                             {impact.importance}
                                         </Badge>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                            onClick={() => handleDeleteImpact(impact.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex gap-1">
+                                            {impact.importance === 'significativo' && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-6 w-6 text-orange-600 hover:text-orange-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => {
+                                                        setImpactToEval(impact);
+                                                        setIsEvalDialogOpen(true);
+                                                    }}
+                                                    title="Evaluar Impacto"
+                                                >
+                                                    <Calculator className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => handleDeleteImpact(impact.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div className="space-y-1">
                                         <div className="text-[10px] text-amber-600 font-bold uppercase tracking-tight flex items-center gap-1">
@@ -401,6 +423,14 @@ export default function AlternativeDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Detailed Evaluation Dialog */}
+      <ImpactEvaluationDialog 
+        impact={impactToEval}
+        isOpen={isEvalDialogOpen}
+        onOpenChange={setIsEvalDialogOpen}
+        onUpdate={loadData}
+      />
     </div>
   );
 }

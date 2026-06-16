@@ -39,6 +39,14 @@ export const impactService = {
     await deleteDoc(docRef);
   },
 
+  async updateImpact(id: string, data: Partial<Impact>): Promise<void> {
+    const { collection, addDoc, getDocs, query, where, doc, deleteDoc, Timestamp, writeBatch, updateDoc } = await import('firebase/firestore');
+    const docRef = doc(db, COLLECTION_NAME, id);
+    // Remove id and createdAt if they accidentally slipped in
+    const { id: _, createdAt: __, ...cleanData } = data as any;
+    await updateDoc(docRef, cleanData);
+  },
+
   async deleteAlternativeImpacts(alternativeId: string): Promise<void> {
     const q = query(collection(db, COLLECTION_NAME), where('alternativeId', '==', alternativeId));
     const querySnapshot = await getDocs(q);

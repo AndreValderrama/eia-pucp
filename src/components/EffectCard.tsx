@@ -53,9 +53,10 @@ export default function EffectCard({ effect, onAnalyze, onEdit, onDelete }: Effe
         {effect.justification && (
           <p className="text-xs text-muted-foreground italic">AI Justification: {effect.justification}</p>
         )}
-        {effect.idoneityScore !== undefined && (
-            <p className="text-xs text-muted-foreground">Idoneity Score: {effect.idoneityScore}</p>
-        )}
+        <div className="flex gap-4 pt-2">
+            <Badge variant="secondary" className="text-[10px]">Q: {effect.qualitative?.calculatedImportance || 0}</Badge>
+            <Badge variant="secondary" className="text-[10px]">C: {effect.quantitative?.calculatedValue?.toFixed(3) || 0}</Badge>
+        </div>
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={() => onAnalyze(effect)} title="Analyze with AI">

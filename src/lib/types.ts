@@ -35,6 +35,30 @@ export type ImpactCharacter = 'compatible' | 'critical' | 'moderate' | 'severe' 
 
 export type ImpactImportance = 'despreciable' | 'notable' | 'significativo' | 'difuso';
 
+export interface QualitativeAssessment {
+  signo: '+' | '-';
+  acumulacion: number; // A
+  extension: number; // E
+  intensidad: number; // IN
+  persistencia: number; // P
+  reversibilidad: number; // RV
+  recuperabilidad: number; // RC
+  periodicidad: number; // PR
+  momento: number; // MO
+  efecto: number; // EF
+  calculatedImportance: number;
+}
+
+export interface QuantitativeAssessment {
+  functionType: string;
+  min: number;
+  max: number;
+  x: number;
+  umbral?: number;
+  a?: number;
+  calculatedValue: number; // y between -1 and 1
+}
+
 export interface Impact {
   id: string;
   userId: string;
@@ -45,10 +69,13 @@ export interface Impact {
   factorId: string;
   factorName: string;
   importance: ImpactImportance;
-  normalizedWeight: number; // factor.weight / totalFactorWeight
+  normalizedWeight: number;
   description?: string;
+  qualitative?: QualitativeAssessment;
+  quantitative?: QuantitativeAssessment;
   createdAt: string;
 }
+
 
 export interface Effect {
   id: string;
