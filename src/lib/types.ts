@@ -33,13 +33,30 @@ export interface Action {
 
 export type ImpactCharacter = 'compatible' | 'critical' | 'moderate' | 'severe' | 'pending' | undefined;
 
+export type ImpactImportance = 'despreciable' | 'notable' | 'significativo' | 'difuso';
+
+export interface Impact {
+  id: string;
+  userId: string;
+  projectId: string;
+  alternativeId: string;
+  actionId: string;
+  actionName: string;
+  factorId: string;
+  factorName: string;
+  importance: ImpactImportance;
+  normalizedWeight: number; // factor.weight / totalFactorWeight
+  description?: string;
+  createdAt: string;
+}
+
 export interface Effect {
   id: string;
-  actionName: string; // Simplified for direct use
-  actionDescription: string; // Simplified for direct use
-  factorName: string; // Simplified for direct use, maps to EnvironmentalFactor.name
+  actionName: string;
+  actionDescription: string;
+  factorName: string;
   description: string;
-  idoneityScore: number; // 0-100
+  importance: ImpactImportance;
   character?: ImpactCharacter;
   justification?: string;
 }
@@ -51,4 +68,5 @@ export interface Alternative {
   name: string;
   description?: string;
   effects: Effect[];
+  actionTree?: ActionNode[]; // Custom framework for this alternative
 }

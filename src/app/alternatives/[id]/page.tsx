@@ -1,41 +1,46 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import FuzzyLogicAssistant from '@/components/FuzzyLogicAssistant';
-import EffectCard from '@/components/EffectCard';
-import ActionTree from '@/components/ActionTree';
-import type { Alternative, Effect, EnvironmentalFactor, ActionNode, Project } from '@/lib/types';
-import type { EffectCharacterInferenceOutput } from '@/ai/flows/effect-character-inference';
-import { Layers, PlusCircle, ChevronLeft, Edit3, BrainCircuit, Loader2, Settings2 } from 'lucide-react';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useToast } from '@/hooks/use-toast';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription, 
+  DialogFooter 
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Layers, 
+  ChevronLeft, 
+  Loader2, 
+  Zap, 
+  Wind, 
+  ArrowRight, 
+  Plus, 
+  Trash2,
+  Settings2,
+  Info,
+  CheckCircle2
+} from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 import { alternativeService } from '@/lib/services/alternative-service';
+import { projectService } from '@/lib/services/project-service';
 import { factorService } from '@/lib/services/factor-service';
 import { actionService } from '@/lib/services/action-service';
-import { projectService } from '@/lib/services/project-service';
-import { useAuth } from '@/lib/auth-context';
-
-const effectFormSchema = z.object({
-  actionName: z.string().min(3, "Action name is required."),
-  actionDescription: z.string().min(10, "Action description is required."),
-  factorName: z.string().min(1, "Environmental factor is required."),
-  description: z.string().min(10, "Effect description is required."),
-  idoneityScore: z.coerce.number().min(0).max(100).default(50),
-});
-type EffectFormValues = z.infer<typeof effectFormSchema>;
+import { impactService } from '@/lib/services/impact-service';
+import type { Project, Alternative, ActionNode, EnvironmentalFactor, Impact, ImpactImportance } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
+import ActionTree from '@/components/ActionTree';
 
 export default function AlternativeDetailPage() {
   const params = useParams();
@@ -46,89 +51,103 @@ export default function AlternativeDetailPage() {
 
   const [alternative, setAlternative] = useState<Alternative | null>(null);
   const [project, setProject] = useState<Project | null>(null);
-  const [effects, setEffects] = useState<Effect[]>([]);
-  const [availableFactors, setAvailableFactors] = useState<EnvironmentalFactor[]>([]);
   const [actionTree, setActionTree] = useState<ActionNode[]>([]);
-  
+  const [factorTree, setFactorTree] = useState<EnvironmentalFactor[]>([]);
+  const [impacts, setImpacts] = useState<Impact[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modals state
-  const [isEffectDialogOpen, setIsEffectDialogOpen] = useState(false);
-  const [editingEffect, setEditingEffect] = useState<Effect | null>(null);
-  const [selectedEffectForAI, setSelectedEffectForAI] = useState<Effect | undefined>(undefined);
-
-  const { control, handleSubmit, register, reset, setValue, formState: { errors: effectFormErrors } } = useForm<EffectFormValues>({
-    resolver: zodResolver(effectFormSchema),
-    defaultValues: { idoneityScore: 50 }
-  });
+  // UI State for Node Selection
+  const [selectedAction, setSelectedAction] = useState<ActionNode | null>(null);
+  const [selectedFactor, setSelectedFactor] = useState<EnvironmentalFactor | null>(null);
+  const [isImpactDialogOpen, setIsImpactDialogOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!user) return;
+    if (!user || !id) return;
     try {
-      const altData = await alternativeService.getAlternative(id);
+      const [altData, userFactors] = await Promise.all([
+        alternativeService.getAlternative(id),
+        factorService.getUserFactors(user.uid)
+      ]);
+
       if (altData) {
         setAlternative(altData);
-        setEffects(altData.effects || []);
+        setFactorTree(userFactors);
         
-        // Load parent project and factors
-        const [projData, factorTree] = await Promise.all([
+        const [projData, altImpacts] = await Promise.all([
             projectService.getProject(altData.projectId),
-            factorService.getUserFactors(user.uid)
+            impactService.getAlternativeImpacts(id)
         ]);
-        
+
         if (projData) {
             setProject(projData);
-            setActionTree(projData.actionTree || []);
+            setActionTree(altData.actionTree || projData.actionTree || []);
         }
-        setAvailableFactors(factorService.getLeafFactors(factorTree));
+        setImpacts(altImpacts);
       }
     } catch (error) {
       console.error("Error loading data:", error);
-      toast({ title: "Error", description: "Could not load alternative details.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [id, user, toast]);
+  }, [id, user]);
 
   useEffect(() => {
     if (!authLoading && user) loadData();
     else if (!authLoading) setLoading(false);
   }, [authLoading, user, loadData]);
 
-  // --- Effect Handlers ---
-  const handleEffectSubmit = async (data: EffectFormValues) => {
-    const newOrUpdatedEffect: Effect = {
-      id: editingEffect ? editingEffect.id : `effect-${Date.now()}`,
-      ...data,
-      character: editingEffect ? editingEffect.character : 'pending',
-      justification: editingEffect ? editingEffect.justification : undefined,
-    };
+  // Derived leaf nodes
+  const leafActions = useMemo(() => actionService.getLeafActions(actionTree), [actionTree]);
+  const leafFactors = useMemo(() => factorService.getLeafFactors(factorTree), [factorTree]);
+  const totalFactorWeight = useMemo(() => leafFactors.reduce((sum, f) => sum + f.weight, 0), [leafFactors]);
 
-    const updatedEffects = editingEffect 
-      ? effects.map(e => e.id === editingEffect.id ? newOrUpdatedEffect : e)
-      : [...effects, newOrUpdatedEffect];
+  // Check if a link exists between action and factor
+  const getImpact = (actionId: string, factorId: string) => {
+    return impacts.find(i => i.actionId === actionId && i.factorId === factorId);
+  };
 
+  const handleCreateImpact = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user || !selectedAction || !selectedFactor || !alternative || !project) return;
+
+    const formData = new FormData(e.currentTarget);
+    const importance = formData.get('importance') as ImpactImportance;
+    const description = formData.get('description') as string;
+
+    setIsSaving(true);
     try {
-      await alternativeService.updateAlternative(id, { effects: updatedEffects });
-      setEffects(updatedEffects);
-      toast({ title: editingEffect ? "Effect Updated" : "Effect Added" });
-      setIsEffectDialogOpen(false);
-      setEditingEffect(null);
-      reset();
+      await impactService.createImpact(user.uid, {
+        projectId: project.id,
+        alternativeId: alternative.id,
+        actionId: selectedAction.id,
+        actionName: selectedAction.name,
+        factorId: selectedFactor.id,
+        factorName: selectedFactor.name,
+        importance,
+        normalizedWeight: selectedFactor.weight / (totalFactorWeight || 1),
+        description
+      });
+
+      toast({ title: "Impact Linked", description: `${selectedAction.name} → ${selectedFactor.name}` });
+      setIsImpactDialogOpen(false);
+      setSelectedAction(null);
+      setSelectedFactor(null);
+      loadData(); // Refresh list
     } catch (error) {
-      toast({ title: "Error", variant: "destructive" });
+      toast({ title: "Error linking nodes", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleInferenceComplete = async (effectId: string | undefined, output: EffectCharacterInferenceOutput) => {
-    if (effectId) {
-      const updated = effects.map(e => e.id === effectId ? { ...e, character: output.character as any, justification: output.justification } : e);
-      try {
-          await alternativeService.updateAlternative(id, { effects: updated });
-          setEffects(updated);
-      } catch (error) {
-          toast({ title: "Error saving AI result", variant: "destructive" });
-      }
+  const handleDeleteImpact = async (impactId: string) => {
+    try {
+        await impactService.deleteImpact(impactId);
+        setImpacts(prev => prev.filter(i => i.id !== impactId));
+        toast({ title: "Impact removed" });
+    } catch (error) {
+        toast({ title: "Error deleting impact", variant: "destructive" });
     }
   };
 
@@ -136,113 +155,248 @@ export default function AlternativeDetailPage() {
   if (!alternative || !project) return <div className="p-12 text-center">Alternative not found.</div>;
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
-      <Button variant="outline" size="sm" asChild className="mb-4">
-        <Link href={`/projects/${project.id}`}><ChevronLeft className="mr-2 h-4 w-4" /> Back to Project</Link>
-      </Button>
-
-      <Card className="shadow-lg border-t-4 border-t-primary">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="font-headline text-3xl text-primary flex items-center gap-2">
-              <Layers className="h-8 w-8" /> {alternative.name}
-            </CardTitle>
-            <div className="flex gap-2">
-                <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/20">
-                    Project: {project.name}
-                </Badge>
-                <Button variant="outline" size="sm" onClick={() => router.push(`/alternatives/${id}/edit`)}>
-                <Edit3 className="mr-2 h-4 w-4" /> Edit Details
-                </Button>
-            </div>
-          </div>
-          {alternative.description && <CardDescription className="text-base pt-2">{alternative.description}</CardDescription>}
-        </CardHeader>
-      </Card>
-
-      <section id="effects-section">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="font-headline text-2xl text-primary">Environmental Effects</h2>
-          <Button onClick={() => { setEditingEffect(null); setIsEffectDialogOpen(true); reset(); }}>
-            <PlusCircle className="mr-2 h-5 w-5" /> Add New Effect
-          </Button>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center">
+        <Button variant="outline" size="sm" asChild>
+            <Link href="/"><ChevronLeft className="mr-2 h-4 w-4" /> Dashboard</Link>
+        </Button>
+        <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                Project: {project.name}
+            </Badge>
+            <Badge className="bg-primary text-white">
+                Alternative: {alternative.name}
+            </Badge>
         </div>
-        {effects.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {effects.map((effect) => (
-              <EffectCard 
-                key={effect.id} 
-                effect={effect} 
-                onAnalyze={(e) => { setSelectedEffectForAI(e); document.getElementById('fuzzy-logic-assistant')?.scrollIntoView({ behavior: 'smooth' }); }} 
-                onEdit={(e) => { setEditingEffect(e); setIsEffectDialogOpen(true); reset(e as any); }} 
-                onDelete={(eid) => alternativeService.deleteAlternative(eid).then(() => setEffects(prev => prev.filter(e => e.id !== eid)))} 
-              />
-            ))}
-          </div>
-        ) : <p className="text-muted-foreground text-center py-8">No effects defined yet. Click "Add New Effect" to begin.</p>}
-      </section>
+      </div>
 
-      <Separator className="my-12" />
+      <Tabs defaultValue="visual" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="visual" className="flex items-center gap-2">
+            <Layers className="h-4 w-4" /> Node Mapping
+          </TabsTrigger>
+          <TabsTrigger value="framework" className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4" /> Framework Logic
+          </TabsTrigger>
+        </TabsList>
 
-      <section id="fuzzy-logic-assistant" className="pt-8">
-        <h2 className="font-headline text-2xl text-primary mb-6 flex items-center gap-2"><BrainCircuit className="h-7 w-7" /> AI Impact Analyzer</h2>
-        <FuzzyLogicAssistant 
-          availableFactors={availableFactors} 
-          initialEffect={selectedEffectForAI} 
-          onInferenceComplete={handleInferenceComplete} 
-        />
-      </section>
+        <TabsContent value="visual" className="space-y-8 mt-6">
+            <Card className="border-none shadow-none bg-transparent">
+                <CardHeader className="px-0">
+                    <CardTitle className="text-2xl font-headline text-primary">Environmental Node Mapping</CardTitle>
+                    <CardDescription>Select an action on the left and a factor on the right to link an environmental impact.</CardDescription>
+                </CardHeader>
+                <CardContent className="px-0">
+                    <div className="grid grid-cols-1 md:grid-cols-11 gap-4 items-start">
+                        {/* 1. Actions Column */}
+                        <div className="md:col-span-4 space-y-4">
+                            <h3 className="flex items-center gap-2 font-headline font-bold text-amber-600 uppercase text-xs tracking-widest px-2">
+                                <Zap className="h-4 w-4" /> Standardized Actions
+                            </h3>
+                            <div className="space-y-2 max-h-[600px] overflow-auto p-2 bg-muted/30 rounded-xl border">
+                                {leafActions.map(action => (
+                                    <div 
+                                        key={action.id}
+                                        onClick={() => setSelectedAction(action)}
+                                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                            selectedAction?.id === action.id 
+                                            ? 'bg-amber-100 border-amber-500 shadow-md translate-x-2' 
+                                            : 'bg-card hover:border-amber-300'
+                                        }`}
+                                    >
+                                        <p className="text-sm font-medium">{action.name}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
-      {/* --- Modals --- */}
-      <Dialog open={isEffectDialogOpen} onOpenChange={setIsEffectDialogOpen}>
-        <DialogContent className="sm:max-w-[525px]">
-          <DialogHeader>
-            <DialogTitle className="font-headline text-xl">{editingEffect ? 'Edit' : 'Add New'} Effect</DialogTitle>
-            <DialogDescription>Define the environmental impact using the project's standardized action framework.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit(handleEffectSubmit)} className="space-y-4 pt-4">
-            <div className="grid gap-4">
-              <div>
-                <Label htmlFor="actionName">Standardized Action</Label>
-                <Controller name="actionName" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Select an action" /></SelectTrigger>
-                    <SelectContent>
-                      {actionService.getLeafActions(actionTree).map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )} />
-                {effectFormErrors.actionName && <p className="text-xs text-destructive mt-1">{effectFormErrors.actionName.message}</p>}
-              </div>
-              
-              <div>
-                <Label htmlFor="actionDescription">Action Description</Label>
-                <Textarea id="actionDescription" {...register('actionDescription')} placeholder="Describe the specific task causing this effect." />
-              </div>
-              
-              <div>
-                <Label htmlFor="factorName">Environmental Factor</Label>
-                <Controller name="factorName" control={control} render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Select affected factor" /></SelectTrigger>
-                    <SelectContent>{availableFactors.map(f => <SelectItem key={f.id} value={f.name}>{f.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                )} />
-              </div>
+                        {/* 2. Connection Indicator */}
+                        <div className="md:col-span-1 flex flex-col items-center justify-center h-full pt-12">
+                            <div className={`p-3 rounded-full transition-all ${selectedAction && selectedFactor ? 'bg-primary text-white scale-110 shadow-lg' : 'bg-muted text-muted-foreground'}`}>
+                                <ArrowRight className="h-6 w-6" />
+                            </div>
+                            {selectedAction && selectedFactor && (
+                                <Button 
+                                    className="mt-4 animate-bounce" 
+                                    size="sm"
+                                    onClick={() => setIsImpactDialogOpen(true)}
+                                >
+                                    Link
+                                </Button>
+                            )}
+                        </div>
 
-              <div>
-                <Label htmlFor="description">Effect Description</Label>
-                <Textarea id="description" {...register('description')} placeholder="Detail the resulting environmental impact." />
-              </div>
+                        {/* 3. Factors Column */}
+                        <div className="md:col-span-4 space-y-4">
+                            <h3 className="flex items-center gap-2 font-headline font-bold text-primary uppercase text-xs tracking-widest px-2">
+                                <Wind className="h-4 w-4" /> Environmental Factors
+                            </h3>
+                            <div className="space-y-2 max-h-[600px] overflow-auto p-2 bg-muted/30 rounded-xl border">
+                                {leafFactors.map(factor => (
+                                    <div 
+                                        key={factor.id}
+                                        onClick={() => setSelectedFactor(factor)}
+                                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                            selectedFactor?.id === factor.id 
+                                            ? 'bg-primary/10 border-primary shadow-md -translate-x-2' 
+                                            : 'bg-card hover:border-primary/30'
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-sm font-medium">{factor.name}</p>
+                                            <Badge variant="outline" className="text-[10px] opacity-60">W: {factor.weight}</Badge>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
-              <div>
-                <Label htmlFor="idoneityScore">Initial Idoneity Score (0-100)</Label>
-                <Input type="number" {...register('idoneityScore')} />
-              </div>
+                        {/* 4. Mini Legend/Stats */}
+                        <div className="md:col-span-2 space-y-4">
+                             <Card className="bg-primary/5 border-primary/10">
+                                <CardHeader className="p-4">
+                                    <CardTitle className="text-xs uppercase tracking-tighter">Total Impacts</CardTitle>
+                                    <div className="text-3xl font-bold text-primary">{impacts.length}</div>
+                                </CardHeader>
+                             </Card>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Separator />
+
+            <section className="space-y-6">
+                <h2 className="font-headline text-2xl text-primary flex items-center gap-2">
+                    <CheckCircle2 className="h-6 w-6" /> Current Impact Matrix
+                </h2>
+                {impacts.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {impacts.map(impact => (
+                            <Card key={impact.id} className="group hover:border-destructive/30 transition-colors">
+                                <CardHeader className="p-4 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <Badge className={`capitalize ${
+                                            impact.importance === 'significativo' ? 'bg-orange-600' :
+                                            impact.importance === 'notable' ? 'bg-amber-500' :
+                                            impact.importance === 'difuso' ? 'bg-blue-500' : 'bg-slate-400'
+                                        }`}>
+                                            {impact.importance}
+                                        </Badge>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => handleDeleteImpact(impact.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="text-[10px] text-amber-600 font-bold uppercase tracking-tight flex items-center gap-1">
+                                            <Zap className="h-3 w-3" /> {impact.actionName}
+                                        </div>
+                                        <div className="text-[10px] text-primary font-bold uppercase tracking-tight flex items-center gap-1">
+                                            <Wind className="h-3 w-3" /> {impact.factorName}
+                                        </div>
+                                    </div>
+                                    {impact.description && (
+                                        <p className="text-xs text-muted-foreground italic border-l-2 pl-2">
+                                            "{impact.description}"
+                                        </p>
+                                    )}
+                                </CardHeader>
+                                <CardFooter className="p-3 bg-muted/20 text-[10px] flex justify-between">
+                                    <span>Norm. Weight: {impact.normalizedWeight.toFixed(4)}</span>
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="p-12 border-2 border-dashed rounded-2xl text-center text-muted-foreground bg-muted/10">
+                        No links created yet. Start by selecting nodes above.
+                    </div>
+                )}
+            </section>
+        </TabsContent>
+
+        <TabsContent value="framework" className="mt-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="shadow-md">
+                    <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+                        <div>
+                            <CardTitle className="text-xl font-headline">Alternative Action Logic</CardTitle>
+                            <CardDescription>Customize the Phases and Labors for this specific alternative.</CardDescription>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                        <ActionTree nodes={actionTree} onEdit={() => {}} onAddChild={() => {}} onDelete={() => {}} />
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-muted/10 border-dashed">
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Info className="h-5 w-5 text-primary" />
+                            Framework Settings
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-4 text-muted-foreground">
+                        <p>This alternative currently uses its own action framework derived from <strong>{project.projectType}</strong>.</p>
+                        <p>Linking an <strong>Action</strong> to a <strong>Factor</strong> creates an entry in the impacts matrix.</p>
+                        <p>The <strong>Normalized Weight</strong> used for final scoring is calculated as: <code>Factor Weight / Total Alternative Weight</code>.</p>
+                    </CardContent>
+                </Card>
             </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Impact Importance Dialog */}
+      <Dialog open={isImpactDialogOpen} onOpenChange={setIsImpactDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-xl">Define Environmental Impact</DialogTitle>
+            <DialogDescription>
+              Linking <strong>{selectedAction?.name}</strong> to <strong>{selectedFactor?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateImpact} className="space-y-6 pt-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-bold">Importancia del Impacto</Label>
+              <RadioGroup name="importance" defaultValue="notable" className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                  <RadioGroupItem value="despreciable" id="des" />
+                  <Label htmlFor="des" className="font-medium cursor-pointer">Despreciable</Label>
+                </div>
+                <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/50 transition-colors border-amber-200">
+                  <RadioGroupItem value="notable" id="not" />
+                  <Label htmlFor="not" className="font-medium cursor-pointer text-amber-700">Notable</Label>
+                </div>
+                <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/50 transition-colors border-orange-200">
+                  <RadioGroupItem value="significativo" id="sig" />
+                  <Label htmlFor="sig" className="font-medium cursor-pointer text-orange-700">Significativo</Label>
+                </div>
+                <div className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-muted/50 transition-colors border-blue-200">
+                  <RadioGroupItem value="difuso" id="dif" />
+                  <Label htmlFor="dif" className="font-medium cursor-pointer text-blue-700">Difuso</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-bold">Justification / Description</Label>
+              <Textarea 
+                name="description" 
+                placeholder="Describe why this action impacts this factor..."
+                className="min-h-[100px]"
+              />
+            </div>
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEffectDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Save Effect</Button>
+              <Button type="button" variant="outline" onClick={() => setIsImpactDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? "Linking..." : "Confirm Connection"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

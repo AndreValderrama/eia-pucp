@@ -3,41 +3,119 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { PlusCircle, Loader2, Folder, ChevronRight, Users, Calendar } from 'lucide-react';
+import { 
+  PlusCircle, 
+  Loader2, 
+  Folder, 
+  ChevronRight, 
+  Users, 
+  Calendar, 
+  BookOpenText,
+  Layers,
+  LayoutGrid,
+  Map,
+  Trash2,
+  Anchor,
+  Dam,
+  Plus
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
 import { projectService } from '@/lib/services/project-service';
-import type { Project } from '@/lib/types';
+import { alternativeService } from '@/lib/services/alternative-service';
+import { actionService } from '@/lib/services/action-service';
+import type { Project, Alternative } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import { 
+  Accordion, 
+  AccordionContent, 
+  AccordionItem, 
+  AccordionTrigger 
+} from '@/components/ui/accordion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { toast } = useToast();
+  const router = useRouter();
+  const [projects, setProjects] = useState<(Project & { alternatives?: Alternative[] })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAltDialogOpen, setIsAltDialogOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  const projectTypes = actionService.getAvailableProjectTypes();
+
+  const loadData = async () => {
+    if (!user) return;
+    try {
+      const userProjects = await projectService.getUserProjects(user.uid);
+      
+      // Fetch alternatives for each project
+      const projectsWithAlts = await Promise.all(userProjects.map(async (p) => {
+        const alts = await alternativeService.getProjectAlternatives(p.id);
+        return { ...p, alternatives: alts };
+      }));
+      
+      setProjects(projectsWithAlts);
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadProjects() {
-      if (user) {
-        try {
-          const data = await projectService.getUserProjects(user.uid);
-          setProjects(data);
-        } catch (error) {
-          console.error("Error loading projects:", error);
-        } finally {
-          setLoading(false);
-        }
-      } else if (!authLoading) {
-        setLoading(false);
-      }
-    }
-    loadProjects();
+    if (user) loadData();
+    else if (!authLoading) setLoading(false);
   }, [user, authLoading]);
+
+  const handleCreateAlternative = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!user || !selectedProjectId) return;
+    
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const description = formData.get('description') as string;
+
+    try {
+      const project = projects.find(p => p.id === selectedProjectId);
+      // Initialize alternative framework from parent project template
+      const initialTree = project?.actionTree || [];
+
+      const altId = await alternativeService.createAlternative(user.uid, selectedProjectId, {
+        name,
+        description,
+        actionTree: initialTree,
+      });
+
+      toast({ title: "Alternative Created" });
+      setIsAltDialogOpen(false);
+      loadData(); // Refresh list
+    } catch (error) {
+      toast({ title: "Error", variant: "destructive" });
+    }
+  };
+
+  const getTemplateIcon = (type: string) => {
+    switch (type) {
+      case 'Proyecto Vial': return <Map className="h-4 w-4" />;
+      case 'Vertedero': return <Trash2 className="h-4 w-4" />;
+      case 'Puerto': return <Anchor className="h-4 w-4" />;
+      case 'Presa': return <Dam className="h-4 w-4" />;
+      default: return <BookOpenText className="h-4 w-4" />;
+    }
+  };
 
   if (authLoading || loading) {
     return (
       <div className="flex flex-col justify-center items-center h-64 gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading your projects...</p>
+        <p className="text-muted-foreground">Syncing your EIA workspace...</p>
       </div>
     );
   }
@@ -46,13 +124,13 @@ export default function DashboardPage() {
     return (
       <div className="flex flex-col justify-center items-center h-96 gap-6 text-center">
         <div className="bg-primary/10 p-6 rounded-full">
-            <Folder className="h-16 w-16 text-primary" />
+            <LayoutGrid className="h-16 w-16 text-primary" />
         </div>
         <div className="space-y-2">
             <h2 className="text-3xl font-headline text-primary">EnviroWise EIA</h2>
             <p className="text-muted-foreground max-w-md mx-auto">
-                The professional tool for hierarchical Environmental Impact Assessments. 
-                Sign in to manage your projects and frameworks.
+                Professional hierarchical Environmental Impact Assessment. 
+                Sign in to start your projects.
             </p>
         </div>
       </div>
@@ -60,76 +138,154 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-center">
-        <div>
-            <h1 className="font-headline text-3xl text-primary">My Projects</h1>
-            <p className="text-muted-foreground">Manage your assessment frameworks and alternatives.</p>
+    <div className="space-y-12 max-w-6xl mx-auto">
+      {/* 1. Templates Section */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-2 text-primary/80">
+            <BookOpenText className="h-5 w-5" />
+            <h2 className="font-headline text-xl font-bold uppercase tracking-wider">Assessment Frameworks</h2>
         </div>
-        <Link href="/projects/create">
-          <Button className="shadow-lg">
-            <PlusCircle className="mr-2 h-5 w-5" /> New Project
-          </Button>
-        </Link>
-      </div>
-
-      {projects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`} className="group">
-                <Card className="h-full hover:shadow-xl transition-all border-t-4 border-t-primary/40 group-hover:border-t-primary">
-                    <CardHeader>
-                        <div className="flex justify-between items-start mb-2">
-                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                                {project.projectType}
-                            </Badge>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {projectTypes.map(type => (
+                <Card key={type} className="hover:border-primary/50 transition-colors cursor-pointer group" onClick={() => router.push(`/templates`)}>
+                    <CardHeader className="p-4">
+                        <div className="bg-muted p-2 rounded-lg w-fit mb-2 group-hover:bg-primary/10 transition-colors">
+                            {getTemplateIcon(type)}
                         </div>
-                        <CardTitle className="font-headline text-xl group-hover:text-primary transition-colors">
-                            {project.name}
-                        </CardTitle>
-                        <CardDescription className="line-clamp-2 min-h-[40px]">
-                            {project.description}
-                        </CardDescription>
+                        <CardTitle className="text-sm font-headline group-hover:text-primary transition-colors">{type}</CardTitle>
+                        <CardDescription className="text-[10px]">Click to view framework</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
-                            <span className="truncate">{project.authors.join(', ')}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4" />
-                            <span>{new Date(project.creationDate).toLocaleDateString()}</span>
-                        </div>
-                    </CardContent>
-                    <CardFooter className="border-t bg-muted/20 flex justify-end group-hover:bg-primary/5 transition-colors py-3">
-                        <span className="text-xs font-medium text-primary flex items-center">
-                            Open Project <ChevronRight className="ml-1 h-3 w-3" />
-                        </span>
-                    </CardFooter>
                 </Card>
-            </Link>
-          ))}
+            ))}
         </div>
-      ) : (
-        <Card className="border-2 border-dashed p-16 text-center bg-card/50">
-           <div className="flex flex-col items-center gap-4">
-              <div className="bg-primary/10 p-4 rounded-full">
-                <Folder className="h-12 w-12 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-xl font-headline font-semibold">No Projects Yet</h3>
-                <p className="text-muted-foreground max-w-sm mx-auto mt-2">
-                  Start by creating your first project and selecting an environmental framework.
-                </p>
-              </div>
-              <Link href="/projects/create" className="mt-4">
-                <Button size="lg">
-                    <PlusCircle className="mr-2 h-5 w-5" /> Initialize First Project
+      </section>
+
+      {/* 2. My Projects Section */}
+      <section className="space-y-6">
+        <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2 text-primary">
+                <Folder className="h-6 w-6" />
+                <h1 className="font-headline text-2xl font-bold uppercase tracking-wider">My Active Projects</h1>
+            </div>
+            <Link href="/projects/create">
+                <Button className="shadow-lg">
+                    <PlusCircle className="mr-2 h-5 w-5" /> New Project
                 </Button>
-              </Link>
-           </div>
-        </Card>
-      )}
+            </Link>
+        </div>
+
+        {projects.length > 0 ? (
+          <div className="grid grid-cols-1 gap-6">
+            {projects.map((project) => (
+              <Card key={project.id} className="shadow-md border-t-4 border-t-primary/60 overflow-hidden">
+                <CardHeader className="bg-muted/10 pb-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                                    {project.projectType}
+                                </Badge>
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" /> {new Date(project.creationDate).toLocaleDateString()}
+                                </span>
+                            </div>
+                            <CardTitle className="font-headline text-2xl text-primary">{project.name}</CardTitle>
+                            <CardDescription>{project.description}</CardDescription>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedProjectId(project.id); setIsAltDialogOpen(true); }}>
+                            <Plus className="mr-2 h-4 w-4" /> Add Alternative
+                        </Button>
+                    </div>
+                </CardHeader>
+
+                <CardContent className="pt-4 border-t">
+                    <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="alternatives" className="border-none">
+                            <AccordionTrigger className="hover:no-underline py-2">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                    <Layers className="h-4 w-4 text-primary/60" />
+                                    Alternatives ({project.alternatives?.length || 0})
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-4">
+                                {project.alternatives && project.alternatives.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {project.alternatives.map(alt => (
+                                            <Link key={alt.id} href={`/alternatives/${alt.id}`}>
+                                                <div className="p-4 rounded-lg border bg-card hover:border-primary transition-all group flex justify-between items-center">
+                                                    <div className="space-y-1">
+                                                        <p className="font-headline font-bold text-foreground group-hover:text-primary transition-colors">
+                                                            {alt.name}
+                                                        </p>
+                                                        <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                                            {alt.description || 'No description'}
+                                                        </p>
+                                                    </div>
+                                                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-all group-hover:translate-x-1" />
+                                                </div>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 border rounded-lg border-dashed bg-muted/5">
+                                        <p className="text-xs text-muted-foreground">No alternatives created for this project yet.</p>
+                                    </div>
+                                )}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                </CardContent>
+                <CardFooter className="bg-muted/20 py-2 flex justify-start items-center gap-4 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" /> Authors: {project.authors.join(', ')}
+                    </div>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-2 border-dashed p-16 text-center bg-card/50">
+             <div className="flex flex-col items-center gap-4">
+                <div className="bg-primary/10 p-4 rounded-full">
+                  <Folder className="h-12 w-12 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-headline font-semibold">Ready to begin?</h3>
+                  <p className="text-muted-foreground max-w-sm mx-auto mt-2">
+                    Create your first EIA project to start managing alternatives and assessing impacts.
+                  </p>
+                </div>
+                <Link href="/projects/create">
+                  <Button size="lg">Initialize New Project</Button>
+                </Link>
+             </div>
+          </Card>
+        )}
+      </section>
+
+      {/* Alternative Creation Dialog */}
+      <Dialog open={isAltDialogOpen} onOpenChange={setIsAltDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Project Alternative</DialogTitle>
+            <DialogDescription>This alternative will inherit the project's standardized action framework.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateAlternative} className="space-y-4 pt-2">
+            <div className="space-y-2">
+                <Label htmlFor="name">Alternative Name</Label>
+                <Input name="name" required placeholder="e.g. Optimized Route, Clean Tech Option" />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Textarea name="description" placeholder="Briefly describe what this alternative entails." />
+            </div>
+            <DialogFooter className="pt-4">
+                <Button type="button" variant="outline" onClick={() => setIsAltDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Create Alternative</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
