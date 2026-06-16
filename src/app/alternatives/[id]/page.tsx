@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { alternativeService } from '@/lib/services/alternative-service';
+import { factorService } from '@/lib/services/factor-service';
 import { useAuth } from '@/lib/auth-context';
 
 const effectFormSchema = z.object({
@@ -53,27 +54,38 @@ export default function AlternativeDetailPage() {
     defaultValues: { idoneityScore: 50 }
   });
 
-  const loadAlternative = useCallback(async () => {
+  const loadData = useCallback(async () => {
+    if (!user) return;
     try {
-      const data = await alternativeService.getAlternative(id);
-      if (data) {
-        setAlternative(data);
-        setEffects(data.effects || []);
+      const [altData, factorTree] = await Promise.all([
+        alternativeService.getAlternative(id),
+        factorService.getUserFactors(user.uid)
+      ]);
+      
+      if (altData) {
+        setAlternative(altData);
+        setEffects(altData.effects || []);
       }
+      
+      const leaves = factorService.getLeafFactors(factorTree);
+      setAvailableFactors(leaves);
     } catch (error) {
-      console.error("Error loading alternative:", error);
-      toast({ title: "Error", description: "Could not load alternative details.", variant: "destructive" });
+      console.error("Error loading data:", error);
+      toast({ title: "Error", description: "Could not load project details.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [id, toast]);
+  }, [id, user, toast]);
 
   useEffect(() => {
     if (!authLoading) {
-      loadAlternative();
+      if (user) {
+        loadData();
+      } else {
+        setLoading(false);
+      }
     }
-    setAvailableFactors(mockFactors);
-  }, [authLoading, loadAlternative]);
+  }, [authLoading, user, loadData]);
 
   useEffect(() => {
     if (editingEffect) {
@@ -267,22 +279,28 @@ export default function AlternativeDetailPage() {
               </div>
               <div>
                 <Label htmlFor="factorName">Environmental Factor</Label>
-                <Controller
-                    name="factorName"
-                    control={control}
-                    render={({ field }) => (
-                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                        <SelectTrigger id="factorName">
-                            <SelectValue placeholder="Select affected factor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableFactors.map(factor => (
-                            <SelectItem key={factor.id} value={factor.name}>{factor.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                    )}
-                />
+                {availableFactors.length > 0 ? (
+                  <Controller
+                      name="factorName"
+                      control={control}
+                      render={({ field }) => (
+                          <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                          <SelectTrigger id="factorName">
+                              <SelectValue placeholder="Select affected factor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {availableFactors.map(factor => (
+                              <SelectItem key={factor.id} value={factor.name}>{factor.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                          </Select>
+                      )}
+                  />
+                ) : (
+                  <div className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/20">
+                    No factors defined. <Link href="/factors" className="text-primary hover:underline">Manage factors first</Link>.
+                  </div>
+                )}
                 {effectFormErrors.factorName && <p className="text-sm text-destructive mt-1">{effectFormErrors.factorName.message}</p>}
               </div>
               <div>

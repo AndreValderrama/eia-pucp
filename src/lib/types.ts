@@ -10,9 +10,11 @@ export interface Project {
 
 export interface EnvironmentalFactor {
   id: string;
+  userId: string;
   name: string;
-  weight: number; // e.g., 0-1 for normalized weight, or 1-5 for scale
+  weight: number; 
   description?: string;
+  children?: EnvironmentalFactor[]; // Recursive structure for hierarchical factors
 }
 
 export interface Action {
