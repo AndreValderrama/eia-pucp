@@ -67,6 +67,11 @@ export const alternativeService = {
     }
   },
 
+  async valuarAlternative(id: string, valorTotal: number): Promise<void> {
+    const docRef = doc(db, COLLECTION_NAME, id);
+    await updateDoc(docRef, { valorada: true, valorTotal });
+  },
+
   async deleteAlternative(id: string): Promise<void> {
     const docRef = doc(db, COLLECTION_NAME, id);
     await deleteDoc(docRef);

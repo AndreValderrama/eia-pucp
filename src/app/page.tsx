@@ -38,6 +38,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { generateComparativeReport } from '@/lib/utils/report-generator';
+import { impactService } from '@/lib/services/impact-service';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -211,19 +213,42 @@ export default function DashboardPage() {
                                 {project.alternatives && project.alternatives.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {project.alternatives.map(alt => (
-                                            <Link key={alt.id} href={`/alternatives/${alt.id}`}>
-                                                <div className="p-4 rounded-lg border bg-card hover:border-primary transition-all group flex justify-between items-center">
-                                                    <div className="space-y-1">
+                                            <div key={alt.id} className="p-4 rounded-lg border bg-card hover:border-primary transition-all group flex flex-col gap-4">
+                                                <div className="flex justify-between items-start">
+                                                    <Link href={`/alternatives/${alt.id}`} className="flex-1">
                                                         <p className="font-headline font-bold text-foreground group-hover:text-primary transition-colors">
                                                             {alt.name}
                                                         </p>
                                                         <p className="text-[10px] text-muted-foreground line-clamp-1">
                                                             {alt.description || 'No description'}
                                                         </p>
+                                                    </Link>
+                                                    <div className="flex flex-col items-end">
+                                                        <Badge variant={alt.valorada ? "default" : "outline"} className="text-[10px] font-mono">
+                                                            {(alt.valorTotal || 0).toFixed(3)}
+                                                        </Badge>
                                                     </div>
-                                                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-all group-hover:translate-x-1" />
                                                 </div>
-                                            </Link>
+                                                
+                                                <div className="pt-2 border-t">
+                                                    <Button 
+                                                        variant="default" 
+                                                        size="sm" 
+                                                        className="w-full text-[10px] uppercase tracking-tighter"
+                                                        disabled={!alt.effects.every(e => e.character !== 'pending')}
+                                                        onClick={async () => {
+                                                            const impacts = await impactService.getAlternativeImpacts(alt.id);
+                                                            const total = impacts.reduce((sum, i) => sum + (i.qualitative?.calculatedImportance || 0) * i.normalizedWeight * (i.quantitative?.calculatedValue || 0), 0);
+                                                            await alternativeService.valuarAlternative(alt.id, total);
+                                                            toast({ title: "Alternative Valued", description: `Total score: ${total.toFixed(3)}` });
+                                                            loadData();
+                                                        }}
+                                                    >
+                                                        Valorar
+                                                    </Button>
+
+                                                </div>
+                                            </div>
                                         ))}
                                     </div>
                                 ) : (
@@ -235,10 +260,25 @@ export default function DashboardPage() {
                         </AccordionItem>
                     </Accordion>
                 </CardContent>
-                <CardFooter className="bg-muted/20 py-2 flex justify-start items-center gap-4 text-[10px] text-muted-foreground">
+                <CardFooter className="bg-muted/20 py-3 flex justify-between items-center gap-4 text-[10px] text-muted-foreground">
                     <div className="flex items-center gap-1">
                         <Users className="h-3 w-3" /> Authors: {project.authors.join(', ')}
                     </div>
+                    <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="text-[10px] uppercase tracking-tighter"
+                        disabled={(project.alternatives?.filter(a => a.valorada)?.length || 0) < 2}
+                        onClick={async () => {
+                            const impactsMap: Record<string, Impact[]> = {};
+                            for (const alt of (project.alternatives || [])) {
+                                impactsMap[alt.id] = await impactService.getAlternativeImpacts(alt.id);
+                            }
+                            generateComparativeReport(project, project.alternatives || [], impactsMap);
+                        }}
+                    >
+                        Generar Informe Comparativo
+                    </Button>
                 </CardFooter>
               </Card>
             ))}
