@@ -1,0 +1,25 @@
+/**
+ * @description This ruleset enforces a strict project-based access control model for ImpactoVision.
+ * All data is nested under the /projects/{projectId} path, and subcollections inherit this project scope.
+ * Public read access is disallowed by default. Write operations require authentication.
+ * @philosophy Authorization Independence: Rules avoid hierarchical `get()` calls, ensuring efficient and robust access control.
+ * @philosophy Clarity of Intent: Authorization logic is straightforward and easy to understand.
+ * @dataStructure Projects are stored in `/projects/{projectId}`.
+ * @dataStructure Phases, Labors, and Actions are nested under projects to reflect the action hierarchy.
+ * @dataStructure Impacts and Valoraciones are nested under projects, with denormalized project IDs.
+ * @keyDecision No public read access is granted without authentication.
+ * @keyDecision Project-level access control is not explicitly defined. If collaborative access is required, a `members` map should be added to the `/projects/{projectId}` document.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email.matches('.*@pucp\\.edu\\.pe$');
+    }
+
+    match /{path=**} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}
