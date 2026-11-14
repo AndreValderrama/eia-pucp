@@ -17,12 +17,17 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { projectService } from '@/lib/services/project-service';
 import { actionService } from '@/lib/services/action-service';
+import { groupService } from '@/lib/services/group-service';
+import type { Group } from '@/lib/types';
+
+const NO_GROUP = 'none';
 
 const projectSchema = z.object({
   name: z.string().min(3, 'Project name must be at least 3 characters.'),
   description: z.string().min(10, 'Provide a brief description of the project.'),
   projectType: z.string().min(1, 'Please select a project framework.'),
   authors: z.string().min(3, 'Authors are required.'),
+  groupId: z.string(),
 });
 
 type ProjectFormValues = z.infer<typeof projectSchema>;
@@ -33,10 +38,11 @@ export default function CreateProjectPage() {
   const { user, loading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const projectTypes = actionService.getAvailableProjectTypes();
+  const [groups, setGroups] = useState<Group[]>([]);
 
   const { register, handleSubmit, control, formState: { errors } } = useForm<ProjectFormValues>({
     resolver: zodResolver(projectSchema),
-    defaultValues: { projectType: projectTypes[0] }
+    defaultValues: { projectType: projectTypes[0], groupId: NO_GROUP }
   });
 
   useEffect(() => {
@@ -45,6 +51,10 @@ export default function CreateProjectPage() {
       router.push('/');
     }
   }, [user, authLoading, router, toast]);
+
+  useEffect(() => {
+    if (user?.email) groupService.getMyGroups(user.email).then(setGroups).catch(console.error);
+  }, [user]);
 
   const onSubmit = async (data: ProjectFormValues) => {
     if (!user) return;
@@ -59,6 +69,7 @@ export default function CreateProjectPage() {
         projectType: data.projectType,
         authors: data.authors.split(',').map(s => s.trim()),
         actionTree: standardActions,
+        groupId: data.groupId === NO_GROUP ? null : data.groupId,
       });
 
       toast({ title: 'Project Created', description: `"${data.name}" is ready for assessment.` });
@@ -111,6 +122,26 @@ export default function CreateProjectPage() {
                   </Select>
                 )}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="groupId">Grupo (opcional)</Label>
+              <Controller
+                name="groupId"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger id="groupId">
+                      <SelectValue placeholder="Sin grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_GROUP}>Sin grupo (solo yo)</SelectItem>
+                      {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">Los miembros del grupo podrán ver este proyecto.</p>
             </div>
 
             <div className="grid gap-2">

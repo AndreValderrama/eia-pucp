@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Zap, ChevronRight, Layers, Activity, Edit2, Plus, Trash2 } from 'lucide-react';
+import { Zap, ChevronRight, Layers, Activity, Edit2, Plus, Trash2, Copy } from 'lucide-react';
 
 interface ActionTreeProps {
   nodes: ActionNode[];
@@ -19,6 +19,7 @@ interface ActionTreeProps {
   onEdit?: (node: ActionNode) => void;
   onAddChild?: (parentId: string) => void;
   onDelete?: (nodeId: string) => void;
+  onDuplicate?: (nodeId: string) => void;
   onSelect?: (node: ActionNode) => void;
   selectedId?: string;
 }
@@ -29,6 +30,7 @@ export default function ActionTree({
   onEdit, 
   onAddChild, 
   onDelete,
+  onDuplicate,
   onSelect,
   selectedId
 }: ActionTreeProps) {
@@ -67,6 +69,17 @@ export default function ActionTree({
                 title="Edit Name"
               >
                 <Edit2 className="h-4 w-4" />
+              </Button>
+            )}
+            {onDuplicate && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-blue-600" 
+                onClick={(e) => { e.stopPropagation(); onDuplicate(node.id); }}
+                title="Duplicar"
+              >
+                <Copy className="h-4 w-4" />
               </Button>
             )}
             {onDelete && (
@@ -112,6 +125,7 @@ export default function ActionTree({
                     onEdit={onEdit}
                     onAddChild={onAddChild}
                     onDelete={onDelete}
+                    onDuplicate={onDuplicate}
                     onSelect={onSelect}
                     selectedId={selectedId}
                   />

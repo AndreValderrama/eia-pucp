@@ -8,7 +8,8 @@ import {
   getDoc,
   updateDoc,
   deleteDoc,
-  Timestamp
+  Timestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Alternative, Effect } from '../types';
@@ -72,8 +73,12 @@ export const alternativeService = {
     await updateDoc(docRef, { valorada: true, valorTotal });
   },
 
+  /** Deletes the alternative together with all of its impacts. */
   async deleteAlternative(id: string): Promise<void> {
-    const docRef = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(docRef);
+    const impacts = await getDocs(query(collection(db, 'impacts'), where('alternativeId', '==', id)));
+    const batch = writeBatch(db);
+    impacts.docs.forEach(d => batch.delete(d.ref));
+    batch.delete(doc(db, COLLECTION_NAME, id));
+    await batch.commit();
   }
 };

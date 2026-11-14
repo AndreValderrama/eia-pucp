@@ -46,7 +46,7 @@ export default function AppSidebar() {
   useEffect(() => {
       setIsMounted(true);
       if (user) {
-          projectService.getUserProjects(user.uid).then(setProjects);
+          projectService.getAccessibleProjects(user).then(setProjects);
       }
   }, [user]);
 

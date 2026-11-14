@@ -29,7 +29,7 @@ export default function ResultsPage() {
     async function loadData() {
       if (user) {
         try {
-          const userProjects = await projectService.getUserProjects(user.uid);
+          const userProjects = await projectService.getAccessibleProjects(user);
           setProjects(userProjects);
           
           // Load alternatives for all projects

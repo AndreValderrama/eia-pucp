@@ -17,11 +17,12 @@ import {
   Trash2,
   Anchor,
   Dam,
-  Plus
+  Plus,
+  Pencil
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
-import { projectService } from '@/lib/services/project-service';
+import { projectService, type AccessibleProject } from '@/lib/services/project-service';
 import { alternativeService } from '@/lib/services/alternative-service';
 import { actionService } from '@/lib/services/action-service';
 import type { Project, Alternative } from '@/lib/types';
@@ -40,22 +41,28 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { generateComparativeReport } from '@/lib/utils/report-generator';
 import { impactService } from '@/lib/services/impact-service';
+import type { Impact } from '@/lib/types';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [projects, setProjects] = useState<(Project & { alternatives?: Alternative[] })[]>([]);
+  const [projects, setProjects] = useState<(AccessibleProject & { alternatives?: Alternative[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAltDialogOpen, setIsAltDialogOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [altToDelete, setAltToDelete] = useState<Alternative | null>(null);
 
   const projectTypes = actionService.getAvailableProjectTypes();
 
   const loadData = async () => {
     if (!user) return;
     try {
-      const userProjects = await projectService.getUserProjects(user.uid);
+      const userProjects = await projectService.getAccessibleProjects(user);
       
       // Fetch alternatives for each project
       const projectsWithAlts = await Promise.all(userProjects.map(async (p) => {
@@ -100,6 +107,19 @@ export default function DashboardPage() {
       loadData(); // Refresh list
     } catch (error) {
       toast({ title: "Error", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteAlternative = async () => {
+    if (!altToDelete) return;
+    try {
+      await alternativeService.deleteAlternative(altToDelete.id);
+      toast({ title: 'Alternativa eliminada', description: altToDelete.name });
+      setAltToDelete(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast({ title: 'Error', description: 'No se pudo eliminar la alternativa.', variant: 'destructive' });
     }
   };
 
@@ -187,6 +207,14 @@ export default function DashboardPage() {
                                 <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
                                     {project.projectType}
                                 </Badge>
+                                {project.groupName && (
+                                    <Badge variant="secondary" className="text-[10px]">
+                                        <Users className="h-3 w-3 mr-1" /> {project.groupName}
+                                    </Badge>
+                                )}
+                                {project.userId !== user.uid && (
+                                    <Badge variant="outline" className="text-[10px]">Compartido contigo</Badge>
+                                )}
                                 <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                     <Calendar className="h-3 w-3" /> {new Date(project.creationDate).toLocaleDateString()}
                                 </span>
@@ -223,7 +251,18 @@ export default function DashboardPage() {
                                                             {alt.description || 'No description'}
                                                         </p>
                                                     </Link>
-                                                    <div className="flex flex-col items-end">
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <div className="flex gap-0.5">
+                                                            <Button asChild variant="ghost" size="icon" className="h-7 w-7" title="Editar alternativa">
+                                                                <Link href={`/alternatives/${alt.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                                                                title="Eliminar alternativa" onClick={() => setAltToDelete(alt)}
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
                                                         <Badge variant={alt.valorada ? "default" : "outline"} className="text-[10px] font-mono">
                                                             {(alt.valorTotal || 0).toFixed(3)}
                                                         </Badge>
@@ -302,6 +341,23 @@ export default function DashboardPage() {
           </Card>
         )}
       </section>
+
+      <AlertDialog open={!!altToDelete} onOpenChange={open => !open && setAltToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la alternativa “{altToDelete?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminarán también todos sus impactos y valoraciones. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAlternative} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Alternative Creation Dialog */}
       <Dialog open={isAltDialogOpen} onOpenChange={setIsAltDialogOpen}>

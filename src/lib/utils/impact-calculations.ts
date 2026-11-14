@@ -1,4 +1,4 @@
-import { QualitativeAssessment } from "../types";
+import type { QualitativeAssessment, ImpactImportance, MemberVote } from "../types";
 
 /**
  * Constants for Qualitative Assessment based on "VALORACIÓN CUALITATIVA COMPLETA"
@@ -163,3 +163,44 @@ export function calculateQuantitativeValue(
   // Ensure y is clamped between 0 and 1
   return Math.max(0, Math.min(1, y));
 }
+
+/* ---------- Group voting ---------- */
+
+
+/** Severity order, used to break ties toward the more cautious category. */
+export const IMPORTANCE_SEVERITY: Record<ImpactImportance, number> = {
+  despreciable: 1,
+  difuso: 2,
+  notable: 3,
+  significativo: 4,
+};
+
+export const IMPORTANCE_LABEL: Record<ImpactImportance, string> = {
+  despreciable: 'Despreciable',
+  notable: 'Notable',
+  significativo: 'Significativo',
+  difuso: 'Difuso',
+};
+
+export function countImportanceVotes(votes?: Record<string, MemberVote<ImpactImportance>>) {
+  const counts: Record<ImpactImportance, number> = { despreciable: 0, notable: 0, significativo: 0, difuso: 0 };
+  Object.values(votes || {}).forEach(v => { counts[v.value] += 1; });
+  return counts;
+}
+
+/** Most-voted category; a tie goes to the more severe one. Null when nobody has voted. */
+export function consensusImportance(votes?: Record<string, MemberVote<ImpactImportance>>): ImpactImportance | null {
+  const counts = countImportanceVotes(votes);
+  const ranked = (Object.keys(counts) as ImpactImportance[])
+    .filter(k => counts[k] > 0)
+    .sort((a, b) => counts[b] - counts[a] || IMPORTANCE_SEVERITY[b] - IMPORTANCE_SEVERITY[a]);
+  return ranked[0] ?? null;
+}
+
+export function likertMean(votes?: Record<string, MemberVote<number>>): number | null {
+  const values = Object.values(votes || {}).map(v => v.value);
+  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+}
+
+/** Maps a 1–5 Likert mean onto the 0–1 magnitude scale. */
+export const likertToMagnitude = (mean: number) => Math.max(0, Math.min(1, (mean - 1) / 4));

@@ -17,11 +17,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Info, Calculator, Activity, BarChart3 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import QuantitativeFunctionPanel from '@/components/QuantitativeFunctionPanel';
+import LikertPanel from '@/components/LikertPanel';
 import { Impact, QualitativeAssessment, QuantitativeAssessment } from '@/lib/types';
 import { 
   calculateQualitativeImportance, 
   calculateQuantitativeValue, 
-  QUALITATIVE_WEIGHTS 
+  QUALITATIVE_WEIGHTS,
+  likertMean,
+  likertToMagnitude,
 } from '@/lib/utils/impact-calculations';
 import { impactService } from '@/lib/services/impact-service';
 import { useToast } from '@/hooks/use-toast';
@@ -31,9 +36,11 @@ interface ImpactEvaluationDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdate: () => void;
+  /** Members who can vote on the Likert magnitude (1 for projects without a group). */
+  memberCount?: number;
 }
 
-export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, onUpdate }: ImpactEvaluationDialogProps) {
+export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, onUpdate, memberCount = 1 }: ImpactEvaluationDialogProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -54,6 +61,7 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
 
   // Quantitative State
   const [quantitative, setQuantitative] = useState<QuantitativeAssessment>(() => ({
+    method: impact?.quantitative?.method || 'function',
     functionType: impact?.quantitative?.functionType || 'Lineal creciente',
     min: impact?.quantitative?.min ?? 0,
     max: impact?.quantitative?.max ?? 100,
@@ -74,8 +82,15 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
     qualitative.efecto
   ]);
 
+  const method = quantitative.method || 'function';
+  const groupMean = likertMean(impact?.likertVotes);
+
   // Update value when quantitative changes
   useEffect(() => {
+    if (method === 'likert') {
+      setQuantitative(prev => ({ ...prev, calculatedValue: groupMean === null ? 0 : likertToMagnitude(groupMean) }));
+      return;
+    }
     const value = calculateQuantitativeValue(
       quantitative.functionType,
       quantitative.x,
@@ -86,16 +101,18 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
     setQuantitative(prev => ({ ...prev, calculatedValue: value }));
   }, [
     quantitative.functionType, quantitative.x, quantitative.min, 
-    quantitative.max, quantitative.umbral, quantitative.a
+    quantitative.max, quantitative.umbral, quantitative.a, method, groupMean
   ]);
 
   // Reset state when impact changes
+  // Reset only when a different impact is opened, so reloads after a Likert vote keep unsaved edits.
   useEffect(() => {
     if (impact) {
       if (impact.qualitative) setQualitative(impact.qualitative);
-      if (impact.quantitative) setQuantitative(impact.quantitative);
+      if (impact.quantitative) setQuantitative({ method: 'function', ...impact.quantitative });
     }
-  }, [impact]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [impact?.id]);
 
   const finalScore = useMemo(() => {
     if (!impact) return 0;
@@ -104,6 +121,14 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
 
   const handleSave = async () => {
     if (!impact) return;
+    if (method === 'function' && quantitative.max <= quantitative.min) {
+      toast({ title: 'Rango inválido', description: 'El máximo debe ser mayor que el mínimo.', variant: 'destructive' });
+      return;
+    }
+    if (method === 'likert' && groupMean === null) {
+      toast({ title: 'Faltan votos', description: 'Emite al menos un voto Likert antes de guardar.', variant: 'destructive' });
+      return;
+    }
     setIsSaving(true);
     try {
       await impactService.updateImpact(impact.id, {
@@ -283,86 +308,29 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
               </TabsContent>
 
               <TabsContent value="quantitative" className="space-y-4 pt-4">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Función de Transformación</Label>
-                    <Select 
-                        value={quantitative.functionType} 
-                        onValueChange={(v) => setQuantitative({...quantitative, functionType: v})}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Lineal creciente">Lineal creciente</SelectItem>
-                        <SelectItem value="Lineal decreciente">Lineal decreciente</SelectItem>
-                        <SelectItem value="Parabólica creciente I">Parabólica creciente I</SelectItem>
-                        <SelectItem value="Parabólica decreciente I">Parabólica decreciente I</SelectItem>
-                        <SelectItem value="Parabólica creciente II">Parabólica creciente II</SelectItem>
-                        <SelectItem value="Parabólica decreciente II">Parabólica decreciente II</SelectItem>
-                        <SelectItem value="Parabólica doble creciente I">Parabólica doble creciente I</SelectItem>
-                        <SelectItem value="Parabólica doble decreciente I">Parabólica doble decreciente I</SelectItem>
-                        <SelectItem value="Parabólica doble creciente II">Parabólica doble creciente II</SelectItem>
-                        <SelectItem value="Parabólica doble decreciente II">Parabólica doble decreciente II</SelectItem>
-                        <SelectItem value="Máximo intermedio">Máximo intermedio</SelectItem>
-                        <SelectItem value="Mínimo intermedio">Mínimo intermedio</SelectItem>
-                        <SelectItem value="Umbral creciente">Umbral creciente</SelectItem>
-                        <SelectItem value="Umbral decreciente">Umbral decreciente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Function Graph */}
-                  <div className="h-32 w-full bg-muted/20 rounded-lg border flex items-center justify-center relative overflow-hidden">
-                    <svg className="w-full h-full" viewBox="0 0 100 32" preserveAspectRatio="none">
-                      <polyline
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-primary"
-                        points={(() => {
-                          const points = [];
-                          const steps = 20;
-                          for (let i = 0; i <= steps; i++) {
-                            const xVal = quantitative.min + (i / steps) * (quantitative.max - quantitative.min);
-                            const yVal = calculateQuantitativeValue(quantitative.functionType, xVal, quantitative.min, quantitative.max, { umbral: quantitative.umbral, a: quantitative.a });
-                            points.push(`${(i / steps) * 100},${32 - (yVal * 32)}`);
-                          }
-                          return points.join(' ');
-                        })()}
-                      />
-                    </svg>
-                    <div className="absolute top-1 left-2 text-[10px] text-muted-foreground">0.0</div>
-                    <div className="absolute bottom-1 left-2 text-[10px] text-muted-foreground">1.0</div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Mínimo</Label>
-                      <Input type="number" value={quantitative.min} onChange={(e) => setQuantitative({...quantitative, min: Number(e.target.value)})} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Máximo</Label>
-                      <Input type="number" value={quantitative.max} onChange={(e) => setQuantitative({...quantitative, max: Number(e.target.value)})} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Valor Actual (x)</Label>
-                      <Input type="number" value={quantitative.x} onChange={(e) => setQuantitative({...quantitative, x: Number(e.target.value)})} />
-                    </div>
-                  </div>
-
-                  {(quantitative.functionType.includes('intermedio')) && (
-                     <div className="space-y-2">
-                        <Label>Punto Óptimo (a)</Label>
-                        <Input type="number" value={quantitative.a} onChange={(e) => setQuantitative({...quantitative, a: Number(e.target.value)})} />
-                     </div>
-                  )}
-
-                  {(quantitative.functionType.includes('Umbral')) && (
-                     <div className="space-y-2">
-                        <Label>Umbral</Label>
-                        <Input type="number" value={quantitative.umbral} onChange={(e) => setQuantitative({...quantitative, umbral: Number(e.target.value)})} />
-                     </div>
-                  )}
+                <div className="space-y-2">
+                  <Label>Método para la magnitud</Label>
+                  <RadioGroup
+                    value={method}
+                    onValueChange={(v) => setQuantitative({ ...quantitative, method: v as 'function' | 'likert' })}
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                  >
+                    <Label htmlFor="m-function" className="flex items-start gap-2 border rounded-lg p-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <RadioGroupItem value="function" id="m-function" className="mt-0.5" />
+                      <span><span className="font-medium">Función (mín, máx, valor)</span><br /><span className="text-xs text-muted-foreground font-normal">Cuando conoces el rango del indicador.</span></span>
+                    </Label>
+                    <Label htmlFor="m-likert" className="flex items-start gap-2 border rounded-lg p-3 cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <RadioGroupItem value="likert" id="m-likert" className="mt-0.5" />
+                      <span><span className="font-medium">Votación Likert 1–5</span><br /><span className="text-xs text-muted-foreground font-normal">Sin mín/máx: la media del grupo define la magnitud.</span></span>
+                    </Label>
+                  </RadioGroup>
                 </div>
+
+                {method === 'function' ? (
+                  <QuantitativeFunctionPanel quantitative={quantitative} setQuantitative={setQuantitative} />
+                ) : (
+                  <LikertPanel impact={impact} memberCount={memberCount} onVoted={onUpdate} />
+                )}
               </TabsContent>
             </Tabs>
           </div>
@@ -382,7 +350,7 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Magnitud (y):</span>
+                    <span className="text-muted-foreground">Magnitud (y){method === 'likert' ? ' · Likert' : ''}:</span>
                     <Badge variant="outline" className="font-mono">
                         {quantitative.calculatedValue.toFixed(3)}
                     </Badge>
@@ -410,7 +378,7 @@ export default function ImpactEvaluationDialog({ impact, isOpen, onOpenChange, o
                 </div>
                 <div className="flex items-start gap-2">
                   <Info className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                  <p>La magnitud (y) normaliza el valor actual (x) entre 0 y 1 usando la función seleccionada.</p>
+                  <p>La magnitud (y) va de 0 a 1: con la función, a partir de x entre el mínimo y el máximo; con Likert, (media − 1) / 4.</p>
                 </div>
               </CardContent>
             </Card>

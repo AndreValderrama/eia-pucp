@@ -1,17 +1,18 @@
-export type GroupRole = 'admin' | 'editor' | 'viewer';
-
 export interface Group {
   id: string;
   name: string;
-  inviteCode: string;
-  members: string[]; // User UIDs
-  roles: Record<string, GroupRole>; // User UID -> Role
+  description?: string;
+  ownerId: string; // UID of the creator, the only one who can manage the group
+  ownerEmail: string;
+  memberEmails: string[]; // Lowercase @pucp.edu.pe emails, owner included
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface Project {
   id: string;
   userId: string;
-  groupId?: string; // New: Access Control
+  groupId?: string | null; // Group the project is shared with (members can see it)
   name: string;
   description: string;
   creationDate: string; // ISO date string
@@ -62,6 +63,8 @@ export interface QualitativeAssessment {
 }
 
 export interface QuantitativeAssessment {
+  /** 'function': y from min/max/x. 'likert': y from the members' 1–5 vote mean, (mean − 1) / 4. */
+  method?: 'function' | 'likert';
   functionType: string;
   min: number;
   max: number;
@@ -85,7 +88,35 @@ export interface Impact {
   description?: string;
   qualitative?: QualitativeAssessment;
   quantitative?: QuantitativeAssessment;
+  /** Screening votes, keyed by voter UID. `importance` holds the most-voted category. */
+  votes?: Record<string, MemberVote<ImpactImportance>>;
+  /** Likert 1–5 magnitude votes, keyed by voter UID. */
+  likertVotes?: Record<string, MemberVote<number>>;
   createdAt: string;
+}
+
+export interface MemberVote<T> {
+  email: string;
+  value: T;
+}
+
+export type FactorProposalType = 'add' | 'edit' | 'delete';
+
+export interface FactorProposal {
+  id: string;
+  groupId: string;
+  type: FactorProposalType;
+  /** Factor being edited or deleted. */
+  targetId?: string;
+  targetName?: string;
+  /** Parent for a new factor; null adds a root factor. */
+  parentId?: string | null;
+  data?: { name: string; weight: number; description?: string };
+  proposedBy: string; // email
+  approvals: string[]; // emails
+  rejections: string[]; // emails
+  status: 'pending' | 'applied' | 'rejected';
+  createdAt?: unknown;
 }
 
 
@@ -108,4 +139,6 @@ export interface Alternative {
   description?: string;
   effects: Effect[];
   actionTree?: ActionNode[]; // Custom framework for this alternative
+  valorada?: boolean;
+  valorTotal?: number;
 }
