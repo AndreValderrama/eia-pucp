@@ -4,7 +4,7 @@ export interface Group {
   description?: string;
   ownerId: string; // UID of the creator, the only one who can manage the group
   ownerEmail: string;
-  memberEmails: string[]; // Lowercase @pucp.edu.pe emails, owner included
+  memberEmails: string[]; // Lowercase @pucp.edu.pe / @pucp.pe emails, owner included
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -19,6 +19,51 @@ export interface Project {
   authors: string[];
   projectType?: string; // e.g., 'Vial', 'Vertedero', 'Puerto', 'Presa'
   actionTree?: ActionNode[]; // Master framework for all alternatives in this project
+  location?: ProjectLocation | null;
+  report?: ProjectReportInfo;
+}
+
+export interface ProjectLocation {
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  /** INEI ubigeo code, e.g. 150101. */
+  ubigeo?: string;
+}
+
+/** Extra data printed in the report (informe). */
+export interface ProjectReportInfo {
+  codigo?: string;
+  objetivo?: string;
+  consultora?: string;
+  responsable?: string;
+  fechaEstudio?: string; // yyyy-mm-dd
+  superficieHa?: number;
+}
+
+export type GisLayerKey = 'area_proyecto' | 'aid' | 'aii' | 'estaciones';
+
+/** A map layer stored with a project. GeoJSON is kept as a string because Firestore can't store nested arrays. */
+export interface GisLayer {
+  key: GisLayerKey;
+  fileName: string;
+  geojson: string;
+  featureCount: number;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+/** Variables (CSV) measured at the monitoring stations. */
+export interface StationVariables {
+  fileName: string;
+  columns: string[];
+  rows: Record<string, string>[];
+  /** CSV column holding the station code. */
+  joinColumn: string;
+  /** Station layer property matched against `joinColumn`. */
+  stationField: string;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 
 export interface ActionNode {

@@ -18,7 +18,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  groupService, isGroupOwner, isValidPucpEmail, normalizeEmail, ALLOWED_EMAIL_DOMAIN,
+  groupService, isGroupOwner, isValidPucpEmail, normalizeEmail, ALLOWED_EMAIL_LABEL,
 } from '@/lib/services/group-service';
 import { projectService } from '@/lib/services/project-service';
 import { Group, Project } from '@/lib/types';
@@ -104,7 +104,7 @@ export default function GroupsPage() {
         const invalid = emails.filter(em => !isValidPucpEmail(em));
         if (invalid.length) {
           toast({
-            title: `Solo se permiten correos ${ALLOWED_EMAIL_DOMAIN}`,
+            title: `Solo se permiten correos ${ALLOWED_EMAIL_LABEL}`,
             description: invalid.join(', '),
             variant: 'destructive',
           });
@@ -144,7 +144,7 @@ export default function GroupsPage() {
   if (!user) {
     return (
       <div className="text-center py-24 text-muted-foreground">
-        Inicia sesión con tu correo {ALLOWED_EMAIL_DOMAIN} para gestionar tus grupos.
+        Inicia sesión con tu correo {ALLOWED_EMAIL_LABEL} para gestionar tus grupos.
       </div>
     );
   }
@@ -157,7 +157,7 @@ export default function GroupsPage() {
             <Users className="h-7 w-7" /> Gestión de Grupos
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Crea un grupo, agrega correos {ALLOWED_EMAIL_DOMAIN} y comparte tus proyectos. Los miembros verán los
+            Crea un grupo, agrega correos {ALLOWED_EMAIL_LABEL} y comparte tus proyectos. Los miembros verán los
             proyectos del grupo al iniciar sesión.
           </p>
         </div>
@@ -218,7 +218,7 @@ export default function GroupsPage() {
                   id="group-emails"
                   value={formEmails}
                   onChange={e => setFormEmails(e.target.value)}
-                  placeholder={`a20201234${ALLOWED_EMAIL_DOMAIN}, profesor${ALLOWED_EMAIL_DOMAIN}`}
+                  placeholder="a20201234@pucp.edu.pe, profesor@pucp.pe"
                 />
                 <p className="text-xs text-muted-foreground">
                   Separados por comas o saltos de línea. Puedes agregar más después.
@@ -301,7 +301,7 @@ function GroupCard({
     if (!emails.length) return;
     const invalid = emails.filter(em => !isValidPucpEmail(em));
     if (invalid.length) {
-      toast({ title: `Solo se permiten correos ${ALLOWED_EMAIL_DOMAIN}`, description: invalid.join(', '), variant: 'destructive' });
+      toast({ title: `Solo se permiten correos ${ALLOWED_EMAIL_LABEL}`, description: invalid.join(', '), variant: 'destructive' });
       return;
     }
     const ok = await run(
@@ -407,7 +407,7 @@ function GroupCard({
               <Input
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
-                placeholder={`correo${ALLOWED_EMAIL_DOMAIN}`}
+                placeholder="correo@pucp.edu.pe"
                 className="h-9"
               />
               <Button type="submit" size="sm" disabled={busy || !newEmail.trim()}>

@@ -5,7 +5,8 @@ import { Project, Alternative, Impact } from '../types';
 export const generateComparativeReport = (
   project: Project,
   alternatives: Alternative[],
-  impactsMap: Record<string, Impact[]>
+  impactsMap: Record<string, Impact[]>,
+  clientName?: string
 ) => {
   const doc = new jsPDF();
   let y = 20;
@@ -24,9 +25,31 @@ export const generateComparativeReport = (
 
   // Header
   addText(`Informe Comparativo de Impacto Ambiental: ${project.name}`, 18, true);
-  addText(`Promotor: ${project.description}`, 12);
-  addText(`Fecha: ${new Date().toLocaleDateString()}`, 12);
-  y += 10;
+  const r = project.report || {};
+  const loc = project.location;
+  const cover: [string, string | undefined][] = [
+    ['Código / expediente', r.codigo],
+    ['Cliente', clientName],
+    ['Ubicación', loc ? [loc.distrito, loc.provincia, loc.departamento].filter(Boolean).join(', ') : undefined],
+    ['Ubigeo', loc?.ubigeo],
+    ['Consultora', r.consultora],
+    ['Responsable técnico', r.responsable],
+    ['Superficie del proyecto', r.superficieHa !== undefined ? `${r.superficieHa} ha` : undefined],
+    ['Fecha del estudio', r.fechaEstudio],
+    ['Autores', project.authors?.join(', ')],
+    ['Fecha del informe', new Date().toLocaleDateString()],
+  ];
+  autoTable(doc, {
+    startY: y,
+    body: cover.filter(([, v]) => v).map(([k, v]) => [k, v as string]),
+    theme: 'plain',
+    styles: { fontSize: 10, cellPadding: 1.5 },
+    columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55 } },
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
+  addText(`Descripción: ${project.description}`, 11);
+  if (r.objetivo) addText(`Objetivo: ${r.objetivo}`, 11);
+  y += 6;
 
   // Actions/Factors Table
   addText("Definición de Acciones y Factores", 14, true);

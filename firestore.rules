@@ -1,19 +1,19 @@
 /**
  * @description Access control for EnviroWise EIA.
- * Only signed-in @pucp.edu.pe accounts can read or write anything.
+ * Only signed-in @pucp.edu.pe or @pucp.pe accounts can read or write anything.
  * @dataStructure Groups live in `/groups/{groupId}` with `ownerId`, `ownerEmail` and `memberEmails`
  * (lowercase emails, owner included). Projects point at a group through `groupId`.
  * @keyDecision Only the group's creator (`ownerId`) can edit it, change its members or delete it.
  * Members, identified by their sign-in email, can read the group.
  * @keyDecision Projects and the rest of the data keep the existing open model for signed-in
- * @pucp.edu.pe accounts; the app filters projects by owner and group membership.
+ * PUCP accounts; the app filters projects by owner and group membership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function isSignedIn() {
-      return request.auth != null && request.auth.token.email.matches('.*@pucp\\.edu\\.pe$');
+      return request.auth != null && request.auth.token.email.matches('.*@pucp(\\.edu)?\\.pe$');
     }
 
     function myEmail() {

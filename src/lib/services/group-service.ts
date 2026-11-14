@@ -16,12 +16,14 @@ import { db } from '../firebase';
 import { Group } from '../types';
 
 const COLLECTION_NAME = 'groups';
-export const ALLOWED_EMAIL_DOMAIN = '@pucp.edu.pe';
+export const ALLOWED_EMAIL_DOMAINS = ['@pucp.edu.pe', '@pucp.pe'];
+/** Human-readable list of the allowed domains, for messages and hints. */
+export const ALLOWED_EMAIL_LABEL = ALLOWED_EMAIL_DOMAINS.join(' o ');
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export const isValidPucpEmail = (email: string) =>
-  /^[^\s@]+@pucp\.edu\.pe$/.test(normalizeEmail(email));
+  /^[^\s@]+@pucp(\.edu)?\.pe$/.test(normalizeEmail(email));
 
 export const isGroupOwner = (group: Group, userId?: string | null) =>
   !!userId && group.ownerId === userId;
@@ -78,7 +80,7 @@ export const groupService = {
   async addMember(groupId: string, email: string): Promise<void> {
     const normalized = normalizeEmail(email);
     if (!isValidPucpEmail(normalized)) {
-      throw new Error(`Solo se permiten correos ${ALLOWED_EMAIL_DOMAIN}`);
+      throw new Error(`Solo se permiten correos ${ALLOWED_EMAIL_LABEL}`);
     }
     await updateDoc(doc(db, COLLECTION_NAME, groupId), {
       memberEmails: arrayUnion(normalized),
@@ -91,7 +93,7 @@ export const groupService = {
     const newNorm = normalizeEmail(newEmail);
     if (oldNorm === group.ownerEmail) throw new Error('No se puede cambiar el correo del creador');
     if (!isValidPucpEmail(newNorm)) {
-      throw new Error(`Solo se permiten correos ${ALLOWED_EMAIL_DOMAIN}`);
+      throw new Error(`Solo se permiten correos ${ALLOWED_EMAIL_LABEL}`);
     }
     if (oldNorm === newNorm) return;
     if (group.memberEmails.includes(newNorm)) throw new Error('Ese correo ya está en el grupo');
