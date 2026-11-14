@@ -219,12 +219,25 @@ export default function DashboardPage() {
                                     <Calendar className="h-3 w-3" /> {new Date(project.creationDate).toLocaleDateString()}
                                 </span>
                             </div>
-                            <CardTitle className="font-headline text-2xl text-primary">{project.name}</CardTitle>
+                            <CardTitle className="font-headline text-2xl text-primary">
+                                <Link href={`/projects/${project.id}`} className="hover:underline">{project.name}</Link>
+                            </CardTitle>
+                            {project.location?.departamento && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Map className="h-3 w-3" />
+                                    {[project.location.distrito, project.location.provincia, project.location.departamento].filter(Boolean).join(', ')}
+                                </p>
+                            )}
                             <CardDescription>{project.description}</CardDescription>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => { setSelectedProjectId(project.id); setIsAltDialogOpen(true); }}>
-                            <Plus className="mr-2 h-4 w-4" /> Add Alternative
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href={`/projects/${project.id}`}><Pencil className="mr-2 h-4 w-4" /> Detalle y mapa</Link>
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => { setSelectedProjectId(project.id); setIsAltDialogOpen(true); }}>
+                                <Plus className="mr-2 h-4 w-4" /> Add Alternative
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
 
@@ -313,7 +326,7 @@ export default function DashboardPage() {
                             for (const alt of (project.alternatives || [])) {
                                 impactsMap[alt.id] = await impactService.getAlternativeImpacts(alt.id);
                             }
-                            generateComparativeReport(project, project.alternatives || [], impactsMap);
+                            generateComparativeReport(project, project.alternatives || [], impactsMap, project.groupName);
                         }}
                     >
                         Generar Informe Comparativo

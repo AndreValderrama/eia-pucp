@@ -23,7 +23,7 @@ export type FactorChange =
 
 /** Lowercase, trimmed, accent-free, single-spaced: "Calidad  del Aire" == "calidad del aire". */
 export const normalizeFactorName = (name: string) =>
-  name.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().replace(/\s+/g, ' ').toLowerCase();
+  name.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 const flatten = (items: EnvironmentalFactor[]): EnvironmentalFactor[] =>
   items.flatMap(item => [item, ...flatten(item.children || [])]);
